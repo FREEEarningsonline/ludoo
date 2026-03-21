@@ -24,14 +24,14 @@ const db = firebase.database();
 window.currentUser = null;
 window.userWalletBalance = 0;
 window.userName = 'Guest';
-window.GAME_BET_AMOUNT = 10; // PKR
-window.GAME_WIN_REWARD = 20; // PKR
+window.GAME_BET_AMOUNT = 50; // PKR
+window.GAME_WIN_REWARD = 1000; // PKR
 window.isBetGame = false;
 let gameTurnCount = 0; // Track total turns for initial CPU 6s
 window.PAKISTANI_NAMES = [ 
-    'Ayesha','Nazim','Fatima','Sana','Maria','Hina','Zainab','Sara','Iqra','Mehreen','Nida',
+    'Ayesha','Kiran','Fatima','Sana','Maria','Hina','Zainab','Sara','Iqra','Mehreen','Nida',
 
-    'Ali','Ahmed','Usman','Hassan','Bilal','Imran','Kamran','Faisal','Zahid','Waqas',
+    'Ali','Ahmed','Aleena','Hassan','Bilal','Imran','Kamran','Faisal','Zahid','Waqas',
 
     // Girls Names Added 👇
     'Aiman','Amna','Anaya','Areeba','Arisha','Arooj','Asma','Ayat','Azka','Benish',
