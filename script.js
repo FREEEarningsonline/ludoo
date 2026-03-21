@@ -1,4 +1,5 @@
 
+
 // ====================================================================
 // 1. FIREBASE CONFIGURATION & WALLET SETUP (Realtime DB)
 // ====================================================================
@@ -30,13 +31,19 @@ window.isBetGame = false;
 let gameTurnCount = 0; // Track total turns for initial CPU 6s
 window.redPlayerForfeitCount = 0; // Tracks how many times Red player has forfeited with three 6s
 
-// NEW GLOBAL VARS: These will be loaded from Firebase for dynamic rigging
+// GLOBAL VARS: These will be loaded from Firebase for dynamic rigging
 window.designatedColorWinner = null; // Default CPU color winner (e.g., 'blue')
 window.winningUserUID = null;       // Specific user (by UID) designated to win
+window.gameSettingsReady = false;   // Flag to track if game settings are loaded
+
+// NEW: Flags to ensure each setting listener has fired at least once
+let designatedColorWinnerHasLoaded = false;
+let winningUserUIDHasLoaded = false;
+
 
 window.PAKISTANI_NAMES = [
 
-'Ayesha','Fatima','Sana','Maria','Hina','Zainab','Sara','Iqra','Mehreen','Nida',
+'Ayesha','Fatima','Sana','Maria','CPU','Zainab','Sara','Iqra','Mehreen','Nida',
 'Aiman','Amna','Anaya','Areeba','Arisha','Arooj','Asma','Ayat','Azka','Benish',
 'Bushra','Dua','Eman','Esha','Fariha','Farwa','Hafsa','Hajra','Hiba','Humaira',
 'Ifrah','Inaya','Iram','Isma','Javeria','Kainat','Kanza','Komal','Laiba','Lubna',
@@ -136,23 +143,35 @@ window.PAKISTANI_NAMES = [
 
 ];
 
-// NEW LISTENERS: For dynamic rigging settings from admin panel
+// NEW: Function to check if all necessary game settings are loaded
+function checkAllGameSettingsReady() {
+    // Both flags must be true, indicating both listeners have finished their initial load
+    if (designatedColorWinnerHasLoaded && winningUserUIDHasLoaded) {
+        window.gameSettingsReady = true;
+        console.log("All game settings loaded and ready.");
+        window.checkGameEligibility(); // Update button state now that settings are ready
+    }
+}
+
+// Firebase listeners for dynamic rigging settings from admin panel
 db.ref("gameSettings/designatedColorWinner").on("value", (snapshot) => {
     if (snapshot.exists()) {
         window.designatedColorWinner = snapshot.val();
         console.log(`Default color winner loaded from DB: ${window.designatedColorWinner}`);
     } else {
-        // Default if not set in DB yet (e.g., first run ever)
-        // This will also write 'blue' to the DB for consistency
-        window.designatedColorWinner = 'blue';
+        window.designatedColorWinner = 'blue'; // Default to blue if not set in DB
         db.ref("gameSettings/designatedColorWinner").set('blue'); 
         console.log(`Default color winner defaulted to: ${window.designatedColorWinner}`);
     }
+    designatedColorWinnerHasLoaded = true; // Mark this setting as loaded
+    checkAllGameSettingsReady(); // Check overall readiness
 });
 
 db.ref("gameSettings/winningUserUID").on("value", (snapshot) => {
-    window.winningUserUID = snapshot.exists() ? snapshot.val() : null; // Null if no specific user selected
+    window.winningUserUID = snapshot.exists() ? snapshot.val() : null; // Null if no specific user selected in admin panel
     console.log(`Specific winning user UID loaded from DB: ${window.winningUserUID || 'none'}`);
+    winningUserUIDHasLoaded = true; // Mark this setting as loaded
+    checkAllGameSettingsReady(); // Check overall readiness
 });
 
 
@@ -181,12 +200,17 @@ window.checkGameEligibility = function() {
     if(btn) {
         if (!window.currentUser) {
             btn.innerText = "🤖 Play vs CPU (Login to Earn)";
+            btn.disabled = true; // Disable if not logged in
         } else if (window.userWalletBalance < window.GAME_BET_AMOUNT) {
             btn.innerText = `🤖 Play vs CPU (Need PKR ${window.GAME_BET_AMOUNT})`;
-            btn.disabled = true;
-        } else {
+            btn.disabled = true; // Disable if insufficient balance
+        } else if (!window.gameSettingsReady) { // Check if game settings are ready
+            btn.innerText = "🤖 Play vs CPU (Loading Settings...)";
+            btn.disabled = true; // Disable if settings are still loading
+        }
+        else {
             btn.innerText = `🤖 Play vs CPU (Bet PKR ${window.GAME_BET_AMOUNT})`;
-            btn.disabled = false;
+            btn.disabled = false; // Enable if all conditions met
         }
     }
 }
@@ -244,7 +268,7 @@ window.handleGameEndBetting = async function(winnerColor, isForfeit = false) {
         amountChange = window.GAME_WIN_REWARD;
         gameResult = "Win";
     } else {
-        gameResult = "Loss"; // Any other scenario for the user is a loss
+        gameResult = "Loss"; // Any other scenario for the user is a loss in a betting game
     }
 
     if (amountChange > 0 && gameResult === 'Win') {
@@ -253,7 +277,7 @@ window.handleGameEndBetting = async function(winnerColor, isForfeit = false) {
             await userWalletRef.transaction((currentBalance) => {
                 return (currentBalance || 0) + amountChange;
             });
-        } catch (error) { }
+        } catch (error) { /* Error handling for transaction */ }
     }
 
     db.ref("ludo_game_logs").push().set({
@@ -282,19 +306,21 @@ auth.onAuthStateChanged((user) => {
         window.userWalletBalance = 0;
         window.userName = 'Guest';
     }
-    window.checkGameEligibility();
+    window.checkGameEligibility(); // Update eligibility after auth state changes
+    checkAllGameSettingsReady(); // Also check settings readiness to ensure UI is correctly updated
 });
 
-window.loginUser = function(email, password) { auth.signInWithEmailAndPassword(email, password).then(() => { window.closeAuthModal(); }).catch((e) => alert(e.message)); }
+window.loginUser = function(email, password) { auth.signInWithEmailAndPassword(email, password).then(() => { window.closeAuthModal(); checkAllGameSettingsReady(); }).catch((e) => alert(e.message)); }
 window.signupUser = function(name, email, password) {
     auth.createUserWithEmailAndPassword(email, password).then((u) => {
         db.ref("users/" + u.user.uid).set({ wallet_balance: 50, email: email, name: name });
         window.closeAuthModal();
+        checkAllGameSettingsReady(); // Also check settings readiness to ensure UI is correctly updated
     }).catch((e) => alert(e.message));
 }
 window.logoutUser = function() {
     if (window.currentUser) db.ref("users/" + window.currentUser.uid).off();
-    auth.signOut().then(() => { window.closeAuthModal(); resetToMenu(); });
+    auth.signOut().then(() => { window.closeAuthModal(); resetToMenu(); checkAllGameSettingsReady(); }); // Also check settings readiness to ensure UI is correctly updated
 }
 
 window.showAuthModal = function(mode) {
@@ -309,9 +335,8 @@ window.showAuthModal = function(mode) {
         document.getElementById('toggleAuth').textContent = mode === 'login' ? 'Need an account? Sign Up' : 'Already have an account? Login';
         document.getElementById('authContent').dataset.mode = mode;
         
-        // FIX: Correctly reference the 'authNameContainer' div to toggle its display
         const authNameContainer = document.getElementById('authNameContainer');
-        if (authNameContainer) { // Ensure element exists before accessing its style
+        if (authNameContainer) { 
             authNameContainer.style.display = mode === 'signup' ? 'block' : 'none';
         }
         
@@ -323,9 +348,8 @@ window.showAuthModal = function(mode) {
 window.closeAuthModal = function() { document.getElementById('authModal').style.display = 'none'; }
 window.toggleAuthMode = function() { window.showAuthModal(document.getElementById('authContent').dataset.mode === 'login' ? 'signup' : 'login'); }
 window.submitAuthForm = function() {
-    // FIX: Safely get the value of the 'name' input field
     const nameInput = document.getElementById('name');
-    const name = nameInput ? nameInput.value : ''; // If nameInput is null, 'name' will be an empty string
+    const name = nameInput ? nameInput.value : ''; 
     
     const email = document.getElementById('authEmail').value; 
     const pwd = document.getElementById('authPassword').value;
@@ -386,11 +410,13 @@ function resetGameState() {
 async function startBetGame() {
     if (!window.currentUser) { alert("Please Login/Sign Up to play and earn!"); showAuthModal('login'); return; }
     if (window.userWalletBalance < window.GAME_BET_AMOUNT) { alert("Insufficient PKR balance."); return; }
-    // Ensure game settings are loaded from Firebase before starting a betting game
-    if (window.designatedColorWinner === null || window.winningUserUID === null) {
-        alert("Game settings are still loading. Please wait a moment or refresh the page.");
-        return;
-    }
+    
+    // The button should be disabled if settings aren't ready, so this alert is now redundant
+    // if (!window.gameSettingsReady) {
+    //     alert("Game settings are still loading. Please wait a moment or refresh the page.");
+    //     return;
+    // }
+
     let success = await window.deductBet();
     if (success) { window.isBetGame = true; startGame(true); }
 }
@@ -604,9 +630,10 @@ async function rollDice(colorClick) {
   if (colorClick !== currColor || state.diceRolled || state.isAnimating || state.gameOver) return;
   
   // Ensure designated winner settings are loaded from Firebase before rigging dice
-  if ((window.designatedColorWinner === null || window.winningUserUID === null) && window.isBetGame) {
+  // This check is crucial to prevent rigging from applying incorrectly if settings aren't loaded
+  if (!window.gameSettingsReady && window.isBetGame) { 
       log("Game settings not loaded yet. Please wait.");
-      state.isAnimating = false;
+      state.isAnimating = false; // Release animation lock
       return;
   }
 
@@ -698,8 +725,7 @@ async function rollDice(colorClick) {
                 } else {
                     val = Math.floor(Math.random() * 3) + 1; // 1, 2, 3
                 }
-                // Ensure it doesn't accidentally hit the 3rd 6 if general random falls on 6
-                // (This is a redundant check here because Priority 1 already covers it for winning player, but kept for safety)
+                // (Redundant check here as Priority 1 already handles it for winning player, but harmless)
                 if (val === 6 && state.consecutiveSixes === 2) {
                     val = Math.floor(Math.random() * 5) + 1;
                 }
@@ -753,7 +779,7 @@ async function rollDice(colorClick) {
             } else {
                 // Priority 3: Default: General slow down. Mix of non-6 and occasional 6s.
                 if (Math.random() < 0.7) { // Higher chance for a low/mid roll (1-5)
-                    val = Math.floor(Math.random() * 5) + 1; // 1-5
+                    val = Math.floor(Math.random() * 5) + 1; // 1, 2, 3, 4, 5
                 } else {
                     val = 6; // Still allow 6 sometimes to keep the 3-sixes forfeit possibility active.
                 }
@@ -781,12 +807,13 @@ async function rollDice(colorClick) {
       }
       
       // Forfeit action: Send the last moved token back to base (if any)
-      // This specifically sends ONLY the last moved token back, not ending the game.
+      // This specifically sends ONLY the last moved token back to base (-1 position), 
+      // without resetting the entire game (via `resetToMenu()`).
       if (state.lastMovedToken && state.lastMovedToken.color === currColor) { 
         state.tokens[currColor][state.lastMovedToken.index] = -1; updateBoard(); 
       }
       state.isAnimating = false; 
-      setTimeout(nextTurn, 1000); // Game continues, next turn starts
+      setTimeout(nextTurn, 1000); // Game continues, next turn starts immediately.
       return;
     }
   } else { 
