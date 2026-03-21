@@ -1,5 +1,4 @@
 
-
 // ====================================================================
 // 1. FIREBASE CONFIGURATION & WALLET SETUP (Realtime DB)
 // ====================================================================
@@ -26,11 +25,9 @@ window.currentUser = null;
 window.userWalletBalance = 0;
 window.userName = 'Guest';
 window.GAME_BET_AMOUNT = 10; // PKR
-window.GAME_WIN_REWARD = 100; // PKR
+window.GAME_WIN_REWARD = 20; // PKR
 window.isBetGame = false;
 let gameTurnCount = 0; // Track total turns for initial CPU 6s
-window.redPlayerForfeitCount = 0; // New: Tracks how many times Red player has forfeited with three 6s
-
 window.PAKISTANI_NAMES = [ 
     'Ayesha','Nazim','Fatima','Sana','Maria','Hina','Zainab','Sara','Iqra','Mehreen','Nida',
 
@@ -438,7 +435,7 @@ function getValidMoves(color, roll) {
             }
         } else if (pos >= 0 && pos + roll <= 56) {
             let isBlocked = false;
-            for (let step = 1; step <= roll; step++) {
+            for (let step = 1; step <= roll; step = step + 1) { // Replaced ++
                 let checkPos = pos + step;
                 if (checkPos <= 50) { // On main path
                     let absIdx = getAbsoluteMainIndex(color, checkPos);
@@ -485,7 +482,7 @@ async function rollDice(colorClick) {
             let targetRollToPrevent = -1; // The specific roll to prevent for a token to finish/enter home
 
             // Check if any token can finish (reach 56) or enter home path (from 50 to 51) with a specific roll
-            for (let i = 0; i < 4; i++) {
+            for (let i = 0; i < 4; i = i + 1) { // Replaced ++
                 let pos = redTokens[i];
                 if (pos >= 0 && pos < 56) { // Active token
                     let needed = 56 - pos; // Roll needed to reach home (56)
@@ -503,7 +500,9 @@ async function rollDice(colorClick) {
             // RIGGING LOGIC for RED player:
             if (targetRollToPrevent !== -1) {
                 // Priority 1: Prevent token from finishing or entering home path.
-                // Roll something *other* than `targetRollToPrevent`.
+                // Ensure 'val' is NOT 'targetRollToPrevent'.
+                // If it *is* the target roll, try up to 20 times to get a different one.
+                // If after 20 attempts it's *still* the target roll (highly improbable), force a different specific number.
                 let attempts = 0;
                 do {
                     val = Math.floor(Math.random() * 6) + 1;
@@ -518,10 +517,10 @@ async function rollDice(colorClick) {
             } else if (state.consecutiveSixes < 2 && canMakeValidMoveWith6 && // If not about to hit 3rd 6, and a 6 is useful
                        (window.redPlayerForfeitCount < 3 || // Priority 2A: Force 3 forfeits in early game
                         (finishedTokens === 3 && tokensInHomePath === 1))) { // Priority 2B: Force forfeit for last token too
-                // Force 6 for forfeits to send tokens back
+                // Priority 2: Force 6 for forfeits to send tokens back (if not preventing a win already)
                 val = 6;
             } else {
-                // Default: General slow down for Red. Mix of non-6 and occasional 6s.
+                // Priority 3: Default: General slow down for Red. Mix of non-6 and occasional 6s.
                 // Avoid too many 6s if not specifically for a forfeit scenario.
                 if (Math.random() < 0.7) { // Higher chance for a low/mid roll (1-5)
                     val = Math.floor(Math.random() * 5) + 1; // 1-5
@@ -549,7 +548,7 @@ async function rollDice(colorClick) {
                     bestRollForCPU = Math.floor(Math.random() * 5) + 1; // Force a non-6 (1-5)
                 } else {
                     // Priority 2: Try to finish a token (reach 56)
-                    for (let i = 0; i < 4; i++) {
+                    for (let i = 0; i < 4; i = i + 1) { // Replaced ++
                         let pos = cpuTokens[i];
                         if (pos >= 0 && pos < 56) {
                             let needed = 56 - pos; // Roll needed to reach home (56)
@@ -565,7 +564,7 @@ async function rollDice(colorClick) {
 
                     // Priority 3: If no token can finish, try to enter home path (pos 50 to 51)
                     if (bestRollForCPU === -1) {
-                        for (let i = 0; i < 4; i++) {
+                        for (let i = 0; i < 4; i = i + 1) { // Replaced ++
                             if (cpuTokens[i] === 50) { // Token is just before home entry
                                 let tempValidMoves = getValidMoves(winningCPU, 1); // Needs 1 to enter
                                 if (tempValidMoves.includes(i)) {
@@ -579,7 +578,7 @@ async function rollDice(colorClick) {
                     // Priority 4: If no tokens finishing or entering home, try to bring out from base if a 6 helps
                     if (bestRollForCPU === -1 && tokensInBase > 0) {
                         let canBringOut = false;
-                        for (let i = 0; i < 4; i++) {
+                        for (let i = 0; i < 4; i = i + 1) { // Replaced ++
                             if (cpuTokens[i] === -1) {
                                 // Check if the starting cell for this token is safe (not blocked by own color)
                                 const targetAbsIdx = getAbsoluteMainIndex(winningCPU, 0);
@@ -626,7 +625,7 @@ async function rollDice(colorClick) {
                     } else {
                          // High chance to get exact roll to enter home
                         let allTokens = state.tokens[currColor];
-                        for (let i = 0; i < allTokens.length; i++) {
+                        for (let i = 0; i < allTokens.length; i = i + 1) { // Replaced ++
                             let pos = allTokens[i];
                             if (pos >= 51 && pos < 56) {
                                 let needed = 56 - pos;
