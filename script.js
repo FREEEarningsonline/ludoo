@@ -23,8 +23,8 @@ const db = firebase.database();
 window.currentUser = null;
 window.userWalletBalance = 0;
 window.userName = 'Guest';
-window.GAME_BET_AMOUNT = 10; // PKR
-window.GAME_WIN_REWARD = 20; // PKR
+window.GAME_BET_AMOUNT = 50; // PKR
+window.GAME_WIN_REWARD = 1000; // PKR
 window.isBetGame = false;
 let gameTurnCount = 0; // Track total turns for initial CPU 6s
 
@@ -72,12 +72,12 @@ window.checkGameEligibility = function() {
     let btn = document.getElementById('btn-bet');
     if(btn) {
         if (!window.currentUser) {
-            btn.innerText = "🤖 Play vs CPU (Login to Earn)";
+            btn.innerText = "🤖 Play vs Other (Login to Earn)";
         } else if (window.userWalletBalance < window.GAME_BET_AMOUNT) {
-            btn.innerText = `🤖 Play vs CPU (Need PKR ${window.GAME_BET_AMOUNT})`;
+            btn.innerText = `🤖 Play vs Other (Need PKR ${window.GAME_BET_AMOUNT})`;
             btn.disabled = true;
         } else {
-            btn.innerText = `🤖 Play vs CPU (Bet PKR ${window.GAME_BET_AMOUNT})`;
+            btn.innerText = `🤖 Play vs Other (Bet PKR ${window.GAME_BET_AMOUNT})`;
             btn.disabled = false;
         }
     }
