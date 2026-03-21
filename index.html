@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Ultimate Ludo 3D - Play & Earn PKR</title>
+<link rel="stylesheet" href="style.css">
+
+<!-- Firebase Realtime Database Scripts HEAD mein hi rahenge -->
+<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database-compat.js"></script>
+
+</head>
+<body>
+
+<!-- 1. AUTH HEADER -->
+<div class="top-header">
+    <h1>Play & Earn</h1>
+    <div class="profile-section">
+        <span id="wallet-display">Wallet: PKR -</span>
+        <div class="profile-icon" onclick="showAuthModal(currentUser ? 'profile' : 'login')">👤</div>
+    </div>
+</div>
+
+<!-- AD SCRIPT (Keeping it inline as it's an external script include) -->
+<script type="text/javascript">
+    atOptions = { 'key' : '3d43a842c228553bbce99198dae1a603', 'format' : 'iframe', 'height' : 50, 'width' : 320, 'params' : {} };
+</script>
+<script type="text/javascript" src="//www.highperformanceformat.com/3d43a842c228553bbce99198dae1a603/invoke.js"></script>
+
+
+<!-- LOGIN/SIGNUP MODAL -->
+<div id="authModal" class="modal">
+    <div class="modal-content">
+        <span class="close-btn" onclick="closeAuthModal()">&times;</span>
+        <h2 id="modalTitle">Login</h2>
+        <div id="authContent" data-mode="login">
+            <input type="text" id="authName" placeholder="Name (for Sign Up only)" style="display:none;">
+            <input type="email" id="authEmail" placeholder="Email" required>
+            <input type="password" id="authPassword" placeholder="Password" required>
+            <button id="authSubmitButton" onclick="submitAuthForm()">Login</button>
+            <p id="toggleAuth" style="cursor: pointer; color: #ccc;" onclick="toggleAuthMode()">Need an account? Sign Up</p>
+        </div>
+        <div id="profileContent" style="display:none;">
+            <p id="auth-status" style="font-size: 1.1rem;"></p>
+            <p>Current Balance: <span id="profile-wallet-balance" style="font-weight: bold; color: gold;">PKR 0</span></p>
+            <button onclick="logoutUser()">Logout</button>
+        </div>
+    </div>
+</div>
+
+
+<!-- Start Menu -->
+<div id="menu-modal">
+  <div class="menu-box">
+    <h1>Ludo 3D</h1>
+    <div class="menu-subtitle">★ Earn PKR by Beating AI ★</div>
+    <button id="btn-bet" class="menu-btn btn-cpu" onclick="startBetGame()">🤖 Play vs CPU (Bet PKR 10)</button>
+    <button class="menu-btn btn-pvp" onclick="startGame(false)">👥 Practice / Pass & Play</button>
+  </div>
+</div>
+
+<!-- Game Layout -->
+<div id="game-ui">
+  <div class="player-row">
+    <div class="player-card red" id="card-red">
+      <div class="player-name">Player 1</div>
+      <div class="dice-scene disabled" id="dice-red" onclick="rollDice('red')">
+        <div class="dice-cube" id="cube-red">
+          <div class="dice-face front"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+          <div class="dice-face back"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+          <div class="dice-face right"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+          <div class="dice-face left"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+          <div class="dice-face top"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+          <div class="dice-face bottom"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="player-card blue" id="card-blue" style="flex-direction: row-reverse;">
+      <div class="player-name" style="text-align: right;">Player 2</div>
+      <div class="dice-scene disabled" id="dice-blue" onclick="rollDice('blue')">
+        <div class="dice-cube" id="cube-blue">
+          <div class="dice-face front"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+          <div class="dice-face back"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+          <div class="dice-face right"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+          <div class="dice-face left"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+          <div class="dice-face top"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+          <div class="dice-face bottom"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <div id="log-container">
+      <div id="log">Ready to play!</div>
+      <button id="btn-exit" class="btn-exit" onclick="forfeitGame()">Forfeit</button>
+  </div>
+  
+  <div id="board">
+    <div class="base base-red"><div class="base-inner"></div></div>
+    <div class="base base-blue"><div class="base-inner"></div></div>
+    <div class="base base-yellow"><div class="base-inner"></div></div>
+    <div class="base base-green"><div class="base-inner"></div></div>
+    <div class="center-area"></div>
+    <div id="grid"></div>
+  </div>
+  
+  <div class="player-row">
+    <div class="player-card green" id="card-green">
+      <div class="player-name">Player 4</div>
+      <div class="dice-scene disabled" id="dice-green" onclick="rollDice('green')">
+        <div class="dice-cube" id="cube-green">
+          <div class="dice-face front"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+          <div class="dice-face back"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+          <div class="dice-face right"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+          <div class="dice-face left"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+          <div class="dice-face top"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+          <div class="dice-face bottom"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="player-card yellow" id="card-yellow" style="flex-direction: row-reverse;">
+      <div class="player-name" style="text-align: right;">Player 3</div>
+      <div class="dice-scene disabled" id="dice-yellow" onclick="rollDice('yellow')">
+        <div class="dice-cube" id="cube-yellow">
+          <div class="dice-face front"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+          <div class="dice-face back"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+          <div class="dice-face right"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+          <div class="dice-face left"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+          <div class="dice-face top"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+          <div class="dice-face bottom"><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- JAVASCRIPT FILE KO BODY KE END MEIN DEFINE KIYA HAI AB -->
+<!-- Is se scripts poora DOM load hone ke baad execute honge. -->
+<script src="script.js"></script> 
+
+</body>
+</html>
