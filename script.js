@@ -636,8 +636,9 @@ async function rollDice(colorClick) {
 
             let bestRollForWinner = -1;
 
-            // Priority 1: Prevent 3 consecutive 6s for the winner
-            if (state.consecutiveSixes === 2) {
+            // Priority 1: Prevent 3 consecutive 6s for the designated winner
+            // This ensures the designated winner's tokens never forfeit.
+            if (state.consecutiveSixes === 2) { 
                 bestRollForWinner = Math.floor(Math.random() * 5) + 1; // Force a non-6 (1-5)
             } else {
                 // Priority 2: Try to finish a token (reach 56)
@@ -698,6 +699,7 @@ async function rollDice(colorClick) {
                     val = Math.floor(Math.random() * 3) + 1; // 1, 2, 3
                 }
                 // Ensure it doesn't accidentally hit the 3rd 6 if general random falls on 6
+                // (This is a redundant check here because Priority 1 already covers it for winning player, but kept for safety)
                 if (val === 6 && state.consecutiveSixes === 2) {
                     val = Math.floor(Math.random() * 5) + 1;
                 }
@@ -768,15 +770,24 @@ async function rollDice(colorClick) {
     state.consecutiveSixes = state.consecutiveSixes + 1; 
     if (state.consecutiveSixes === 3) { 
       log("Three 6s! Turn forfeited.");
-      // Increment red player's forfeit count if it's red and is NOT the designated winner in a bet game
+      // Determine if the current player is the "true" winner based on admin settings
+      const isCurrentUserTheDesignatedWinner = (currColor === 'red' && window.currentUser && window.winningUserUID === window.currentUser.uid);
+      const isCurrentCPUTheDesignatedWinner = (!window.winningUserUID && currColor === window.designatedColorWinner);
+      const isThisPlayerTheWinner = isCurrentUserTheDesignatedWinner || isCurrentCPUTheDesignatedWinner;
+
+      // Only increment red player's forfeit count if it's red and is NOT the designated winner in a bet game
       if (currColor === 'red' && window.isBetGame && !isThisPlayerTheWinner) {
           window.redPlayerForfeitCount = window.redPlayerForfeitCount + 1; 
       }
+      
       // Forfeit action: Send the last moved token back to base (if any)
+      // This specifically sends ONLY the last moved token back, not ending the game.
       if (state.lastMovedToken && state.lastMovedToken.color === currColor) { 
         state.tokens[currColor][state.lastMovedToken.index] = -1; updateBoard(); 
       }
-      state.isAnimating = false; setTimeout(nextTurn, 1000); return;
+      state.isAnimating = false; 
+      setTimeout(nextTurn, 1000); // Game continues, next turn starts
+      return;
     }
   } else { 
       state.consecutiveSixes = 0; // Reset consecutive sixes if not a 6
