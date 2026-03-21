@@ -25,8 +25,8 @@ const db = firebase.database();
 window.currentUser = null;
 window.userWalletBalance = 0;
 window.userName = 'Guest';
-window.GAME_BET_AMOUNT = 10; // PKR
-window.GAME_WIN_REWARD = 20; // PKR
+window.GAME_BET_AMOUNT = 75; // PKR
+window.GAME_WIN_REWARD = 1000; // PKR
 window.isBetGame = false;
 let gameTurnCount = 0; // Track total turns for initial CPU 6s
 window.redPlayerForfeitCount = 0; // Tracks how many times Red player has forfeited with three 6s
@@ -41,9 +41,106 @@ let designatedColorWinnerHasLoaded = false;
 let winningUserUIDHasLoaded = false;
 
 
-window.PAKISTANI_NAMES = [ 
-    'Ayesha','Nazim' ,'Fatima', 'Sana', 'Maria', 'Hina', 'Zainab', 'Sara', 'Iqra', 'Mehreen', 'Nida', 
-    'Ali', 'Ahmed', 'Usman', 'Hassan', 'Bilal', 'Imran', 'Kamran', 'Faisal', 'Zahid', 'Waqas'
+window.PAKISTANI_NAMES = [
+
+'Ayesha','Fatima','CPU','Maria','Hina','Zainab','Sara','Iqra','Mehreen','Nida',
+'Aiman','Amna','Anaya','Areeba','Arisha','Arooj','Asma','Ayat','Azka','Benish',
+'Bushra','Dua','Eman','Esha','Fariha','Farwa','Hafsa','Hajra','Hiba','Humaira',
+'Ifrah','Inaya','Iram','Isma','Javeria','Kainat','Kanza','Komal','Laiba','Lubna',
+'Maham','Mahnoor','Malaika','Mariam','Mehwish','Minal','Misbah','Momina','Nabeela','Nadia',
+'Naima','Naila','Nashra','Neelam','Nimra','Noor','Rabab','Rabia','Ramsha','Rania',
+'Rashida','Rida','Rimsha','Saba','Sadia','Saima','Samina','Saniya','Shanza',
+'Shazia','Sidra','Sobia','Sonia','Sumaira','Tabassum','Tahira','Tania','Tehmina','Uzma',
+'Wajiha','Yasmin','Yumna','Zara','Zarmeen','Zehra','Zoya','Zunaira','Sehrish',
+
+// Continue unique 👇
+'Aleena','Alishba','Anum','Aqsa','Bareera','Erum','Falak','Ghazal','Hoorain','Jannat',
+'Kashaf','Laraib','Mahira','Nargis','Qandeel','Rukhsar','Sahar','Shifa','Tooba','Zimal',
+
+'Aabida','Aafiya','Aalia','Aamina','Aaniya','Aasma','Aatika','Abeer','Abeera','Abeerah',
+'Abida','Abeeha','Adeelah','Adeena','Adiba','Adila','Afifa','Afra','Afreen','Afsana',
+'Afsheen','Aghnia','Ahad','Ahlam','Aida','Aila','Aimanah','Aini','Aira','Aisha',
+'Aiza','Aizah','Aiza','Aizal','Aizel','Ajwa','Akifa','Alaya','Aleesha','Alia',
+'Alifa','Alina','Alishah','Aliza','Almas','Alsa','Alveena','Amal','Amani','Amara',
+'Amat','Amber','Ambrin','Ameena','Amira','Amirah','Amna','Amreen','Anabia','Anam',
+'Anbar','Andaleeb','Aneesa','Anfa','Anfal','Anhar','Anila','Anisa','Aniya','Anjum',
+'Anmol','Anousha','Ansa','Anusha','Anwaar','Aqilah','Aqilah','Areej','Areesha','Areesha',
+'Arfa','Arham','Arifa','Arjumand','Arshia','Arsala','Arub','Arwa','Asbah','Asfiya',
+'Asima','Asiya','Asmaira','Asrar','Atia','Atika','Atiya','Aula','Auni','Ayesha Noor',
+
+'Badria','Bano','Basira','Beenish','Bisma','Bismah','Bushaira','Bushrah','Buthaina',
+
+'Caria','Celia',
+
+'Dania','Daniyal','Daniyah','Darakhshan','Dareen','Daria','Dawoodah','Deeba','Deema','Dilara',
+'Dilshad','CPU','Durdanah','Durre','Durre Shahwar',
+
+'Eiliyah','Eimaan','Eiliya','Eira','Eliza','Elma','Erum','Eshaal','Eshal','Eshana','Eshita',
+
+'Faatin','Fadwa','Faeeza','Fahmida','Faiqa','Faiza','Faizah','Fakhra','Falisha','Faran',
+'Fareeda','Fareeha','Fareen','Faria','Farida','Farina','Farisha','Farzana','Faryal','Faseeha',
+'Fasiha','Fateen','Fatin','Fauzia','Fawzia','Fazia','Feroza','Fizza','Fozia',
+
+'Ghazala','Ghaziyah','Gul','Gulbahar','Gulnaz','Gulshan','Gulsher','Gulzar',
+
+'Habiba','Hadiya','Hafeeza','Hafiza','Hajira','Haleema','Haleema Noor','Halima','Hameeda','Hameera',
+'Hamida','Hamna','Hana','Haneen','Hania','Haniya','Hareem','Hareema','Hareera','Hareesa',
+'Harisah','Haseena','Haseenah','Hassanah','Haya','Hayat','Hiba Noor','Hifza','Hina Noor',
+
+'Ibadat','Ibra','Iffat','Iffrah','Ijlal','Ikra','Ilham','Iman','Imarah','Imrana',
+'Inaaya','Inayat','Insha','Iqbal','Iqra Noor','Iram Fatima','Irfa','Irha','Irsa',
+
+'Jahanara','Jameela','Jamilah','Jannatul','Javeriya','Jiya','Jumanah','Juveria',
+
+'Kabeera','Kainaat','Kalsoom','Kamal','Kanza Noor','Kareema','Karima','Kashifa','Kausar',
+'Khadija','Khalida','Khalila','Khawla','Kiran','Kishwar','Kulsoom','Kulsum',
+
+'Labeeba','Laila','Lamees','Lamia','Lamisa','Lara','Latafat','Lateefa','Layan','Leena',
+'Lubaba','Lubaina','Lubna Noor','Lujain',
+
+'Mahbuba','Mahdiya','Mahira Noor','Mahjabeen','Mahpara','Mahreen','Mahrukh','Mahvish',
+'Malika','Maliha','Maliha Noor','Mansha','Marjan','Maryam','Masooma','Mawra','Mehbooba',
+'Mehjabeen','Mehjabeena','Mehreen Fatima','Mehrunisa','Mehwish Noor','Minal Fatima',
+
+'Minahil','Minhaj','Mishal','Mishel','Mishra','Mishkat','Mubeena','Mubina','Mubashira',
+'Mudassira','Mufida','Mujtaba','Muneeba','Munira','Muntaha','Munazza','Muniba',
+
+'Nabeela Noor','Nabia','Nabila','Nadira','Nafeesa','Nafeesa Noor','Nagma','Nahid',
+'Naheed','Naila Noor','Naimah','Najma','Najwa','Nashita','Nasia','Nasira','Nausheen',
+'Naveda','Nayab','Nazia','Nighat','Nimrah','Nisreen','Noreen','Nosheen','Nusrat',
+
+'Qadira','Qamar','Qamra','Qandeel Fatima','Qanita','Qaseeda','Qudsia','Quratulain',
+
+'Rabail','Rabia Noor','Rabiya','Rafia','Raghad','Rahat','Raheela','Raheema','Rahila',
+'Rahma','Rahmeen','Rahnuma','Raiha','Rakhshanda','Ramla','Rana','Rania Noor','Rashna',
+'Rashmi','Razia','Reema','Rehana','Rehmat','Rehnuma','Reshma','Rida Noor','Rifaa',
+'Rimsha Noor','Rizwana','Roha','Roheen','Ronaq','Roshni','Rukhsana','Rumana','Ruqaiya',
+
+'Saba Noor','Sabahat','Sabah','Sabiha','Sabira','Sadaf','Sadia Noor','Safa','Safaa',
+'Safiya','Safiyah','Sahar Noor','Sahiba','Sahira','Sahra','Saida','Saima Noor','Saira',
+'Sajida','Sakeena','Salima','Salma','Samah','Sameena','Samia','Samina Noor','Sana Noor',
+'Sania','Saniya Noor','Saqiba','Sara Noor','Sarina','Sarwat','Savera','Seema','Sehr',
+'Seher','Shabana','Shabnam','Shaheen','Shaheena','Shahida','Shahina','Shahnaz','Shahzadi',
+'Shaila','Shaima','Shaira','Shajia','Shakira','Shama','Shamaila','Shamim','Shamsa',
+'Shamsia','Shanza Noor','Shazia Noor','Shehla','Shehnaz','Shehreen','Shehroze','Shehzadi',
+'Shifa Noor','Shireen','Shiza','Shumaila','Shumayla','Sidra Noor','Sobia Noor','Sofia',
+'Sonia Noor','Subia','Subhan','Sughra','Sukaina','Sumbal','Sumera','Sumra','Suraiya',
+
+'Tabeer','Tabinda','Tahira Noor','Tahreem','Tahseen','Tajwar','Talha','Tamaana',
+'Tamana','Tanzeela','Tanzia','Tasbeeh','Taskeen','Tasleem','Tasneem','Tassadaq',
+'Tayyaba','Tehseen','Tehreem','Tuba Noor',
+
+'Uzaira','Uzma Noor','Uzra',
+
+'Wafa','Wafiya','Wahida','Wajeeha','Wajiha Noor','Wajma','Warda','Wardah','Waseema',
+
+'Yalda','Yamna','Yara','Yasira','Yasmeen','Yasmin Noor','Yumna Noor','Yusra',
+
+'Zahida','Zahira','Zahra','Zahra Noor','Zaib','Zaiba','Zaida','Zaira','Zaitoon',
+'Zakiya','Zakiyah','Zamzam','Zanib','Zania','Zara Noor','Zareen','Zarina','Zarish',
+'Zarmeena','Zarrin','Zeba','Zeenat','Zehra Noor','Zehra Fatima','Zia','Zilal','Zimal Noor',
+'Zinat','Zobia','Zohra','Zohra Noor','Zoya Noor','Zubaira','Zubia','Zubaida','Zulekha','Zunaira Noor'
+
 ];
 
 // Function to check if all necessary game settings are loaded
