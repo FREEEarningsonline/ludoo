@@ -29,8 +29,23 @@ window.isBetGame = false;
 let gameTurnCount = 0; // Track total turns for initial CPU 6s
 
 window.PAKISTANI_NAMES = [ 
-    'Ayesha','Nazim' ,'Fatima', 'Sana', 'Maria', 'Hina', 'Zainab', 'Sara', 'Iqra', 'Mehreen', 'Nida', 
-    'Ali', 'Ahmed', 'Usman', 'Hassan', 'Bilal', 'Imran', 'Kamran', 'Faisal', 'Zahid', 'Waqas'
+    'Ayesha','Nazim','Fatima','Sana','Maria','Hina','Zainab','Sara','Iqra','Mehreen','Nida',
+
+    'Ali','Ahmed','Mustafa','Hassan','Bilal','Imran','Kamran','Faisal','Zahid','Waqas',
+
+    // Girls Names Added 👇
+    'Aiman','Amna','Anaya','Areeba','Arisha','Arooj','Asma','Ayat','Azka','Benish',
+    'Bushra','Dua','Eman','Esha','Fariha','Farwa','Hafsa','Hajra','Hiba','Humaira',
+    'Ifrah','Inaya','Iram','Isma','Javeria','Kainat','Kanza','Komal','Laiba','Lubna',
+    'Maham','Mahnoor','Malaika','Mariam','Mehwish','Minal','Misbah','Momina','Nabeela','Nadia',
+    'Naima','Naila','Nashra','Neelam','Nimra','Noor','Rabab','Rabia','Rafayla','Ramsha',
+    'Rania','Rashida','Rida','Rimsha','Saba','Sadia','Saima','Samina','Saniya','Shanza',
+    'Shazia','Sidra','Sobia','Sonia','Sumaira','Tabassum','Tahira','Tania','Tehmina','Uzma',
+    'Wajiha','Yasmin','Yumna','Zara','Zarmeen','Zehra','Zain','Zoya','Zunaira','Sehrish',
+
+    // Extra Unique
+    'Aleena','Alishba','Anum','Aqsa','Bareera','Erum','Falak','Ghazal','Hoorain','Iqrah',
+    'Jannat','Kashaf','Laraib','Mahira','Nargis','Qandeel','Rukhsar','Sahar','Shifa','Tooba'
 ];
 
 function startWalletListener(uid) {
