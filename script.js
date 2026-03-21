@@ -25,8 +25,8 @@ const db = firebase.database();
 window.currentUser = null;
 window.userWalletBalance = 0;
 window.userName = 'Guest';
-window.GAME_BET_AMOUNT = 75; // PKR
-window.GAME_WIN_REWARD = 1000; // PKR
+window.GAME_BET_AMOUNT = 10; // PKR
+window.GAME_WIN_REWARD = 20; // PKR
 window.isBetGame = false;
 let gameTurnCount = 0; // Track total turns for initial CPU 6s
 window.redPlayerForfeitCount = 0; // Tracks how many times Red player has forfeited with three 6s
@@ -36,116 +36,18 @@ window.designatedColorWinner = null; // Default CPU color winner (e.g., 'blue')
 window.winningUserUID = null;       // Specific user (by UID) designated to win
 window.gameSettingsReady = false;   // Flag to track if game settings are loaded
 
-// NEW: Flags to ensure each setting listener has fired at least once
+// Flags to ensure each setting listener has fired at least once
 let designatedColorWinnerHasLoaded = false;
 let winningUserUIDHasLoaded = false;
 
 
-window.PAKISTANI_NAMES = [
-
-'Ayesha','Fatima','Sana','Maria','CPU','Zainab','Sara','Iqra','Mehreen','Nida',
-'Aiman','Amna','Anaya','Areeba','Arisha','Arooj','Asma','Ayat','Azka','Benish',
-'Bushra','Dua','Eman','Esha','Fariha','Farwa','Hafsa','Hajra','Hiba','Humaira',
-'Ifrah','Inaya','Iram','Isma','Javeria','Kainat','Kanza','Komal','Laiba','Lubna',
-'Maham','Mahnoor','Malaika','Mariam','Mehwish','Minal','Misbah','Momina','Nabeela','Nadia',
-'Naima','Naila','Nashra','Neelam','Nimra','Noor','Rabab','Rabia','Ramsha','Rania',
-'Rashida','Rida','Rimsha','Saba','Sadia','Saima','Samina','Saniya','Shanza',
-'Shazia','Sidra','Sobia','Sonia','Sumaira','Tabassum','Tahira','Tania','Tehmina','Uzma',
-'Wajiha','Yasmin','Yumna','Zara','Zarmeen','Zehra','Zoya','Zunaira','Sehrish',
-
-// Continue unique 👇
-'Aleena','Alishba','Anum','Aqsa','Bareera','Erum','Falak','Ghazal','Hoorain','Jannat',
-'Kashaf','Laraib','Mahira','Nargis','Qandeel','Rukhsar','Sahar','Shifa','Tooba','Zimal',
-
-'Aabida','Aafiya','Aalia','Aamina','Aaniya','Aasma','Aatika','Abeer','Abeera','Abeerah',
-'Abida','Abeeha','Adeelah','Adeena','Adiba','Adila','Afifa','Afra','Afreen','Afsana',
-'Afsheen','Aghnia','Ahad','Ahlam','Aida','Aila','Aimanah','Aini','Aira','Aisha',
-'Aiza','Aizah','Aiza','Aizal','Aizel','Ajwa','Akifa','Alaya','Aleesha','Alia',
-'Alifa','Alina','Alishah','Aliza','Almas','Alsa','Alveena','Amal','Amani','Amara',
-'Amat','Amber','Ambrin','Ameena','Amira','Amirah','Amna','Amreen','Anabia','Anam',
-'Anbar','Andaleeb','Aneesa','Anfa','Anfal','Anhar','Anila','Anisa','Aniya','Anjum',
-'Anmol','Anousha','Ansa','Anusha','Anwaar','Aqilah','Aqilah','Areej','Areesha','Areesha',
-'Arfa','Arham','Arifa','Arjumand','Arshia','Arsala','Arub','Arwa','Asbah','Asfiya',
-'Asima','Asiya','Asmaira','Asrar','Atia','Atika','Atiya','Aula','Auni','Ayesha Noor',
-
-'Badria','Bano','Basira','Beenish','Bisma','Bismah','Bushaira','Bushrah','Buthaina',
-
-'Caria','Celia',
-
-'Dania','Daniyal','Daniyah','Darakhshan','Dareen','Daria','Dawoodah','Deeba','Deema','Dilara',
-'Dilshad','Dina','Durdanah','Durre','Durre Shahwar',
-
-'Eiliyah','Eimaan','Eiliya','Eira','Eliza','Elma','Erum','Eshaal','Eshal','Eshana','Eshita',
-
-'Faatin','Fadwa','Faeeza','Fahmida','Faiqa','Faiza','Faizah','Fakhra','Falisha','Faran',
-'Fareeda','Fareeha','Fareen','Faria','Farida','Farina','Farisha','Farzana','Faryal','Faseeha',
-'Fasiha','Fateen','Fatin','Fauzia','Fawzia','Fazia','Feroza','Fizza','Fozia',
-
-'Ghazala','Ghaziyah','Gul','Gulbahar','Gulnaz','Gulshan','Gulsher','Gulzar',
-
-'Habiba','Hadiya','Hafeeza','Hafiza','Hajira','Haleema','Haleema Noor','Halima','Hameeda','Hameera',
-'Hamida','Hamna','Hana','Haneen','Hania','Haniya','Hareem','Hareema','Hareera','Hareesa',
-'Harisah','Haseena','Haseenah','Hassanah','Haya','Hayat','Hiba Noor','Hifza','Hina Noor',
-
-'Ibadat','Ibra','Iffat','Iffrah','Ijlal','Ikra','Ilham','Iman','Imarah','Imrana',
-'Inaaya','Inayat','Insha','Iqbal','Iqra Noor','Iram Fatima','Irfa','Irha','Irsa',
-
-'Jahanara','Jameela','Jamilah','Jannatul','Javeriya','Jiya','Jumanah','Juveria',
-
-'Kabeera','Kainaat','Kalsoom','Kamal','Kanza Noor','Kareema','Karima','Kashifa','Kausar',
-'Khadija','Khalida','Khalila','Khawla','Kiran','Kishwar','Kulsoom','Kulsum',
-
-'Labeeba','Laila','Lamees','Lamia','Lamisa','Lara','Latafat','Lateefa','Layan','Leena',
-'Lubaba','Lubaina','Lubna Noor','Lujain',
-
-'Mahbuba','Mahdiya','Mahira Noor','Mahjabeen','Mahpara','Mahreen','Mahrukh','Mahvish',
-'Malika','Maliha','Maliha Noor','Mansha','Marjan','Maryam','Masooma','Mawra','Mehbooba',
-'Mehjabeen','Mehjabeena','Mehreen Fatima','Mehrunisa','Mehwish Noor','Minal Fatima',
-
-'Minahil','Minhaj','Mishal','Mishel','Mishra','Mishkat','Mubeena','Mubina','Mubashira',
-'Mudassira','Mufida','Mujtaba','Muneeba','Munira','Muntaha','Munazza','Muniba',
-
-'Nabeela Noor','Nabia','Nabila','Nadira','Nafeesa','Nafeesa Noor','Nagma','Nahid',
-'Naheed','Naila Noor','Naimah','Najma','Najwa','Nashita','Nasia','Nasira','Nausheen',
-'Naveda','Nayab','Nazia','Nighat','Nimrah','Nisreen','Noreen','Nosheen','Nusrat',
-
-'Qadira','Qamar','Qamra','Qandeel Fatima','Qanita','Qaseeda','Qudsia','Quratulain',
-
-'Rabail','Rabia Noor','Rabiya','Rafia','Raghad','Rahat','Raheela','Raheema','Rahila',
-'Rahma','Rahmeen','Rahnuma','Raiha','Rakhshanda','Ramla','Rana','Rania Noor','Rashna',
-'Rashmi','Razia','Reema','Rehana','Rehmat','Rehnuma','Reshma','Rida Noor','Rifaa',
-'Rimsha Noor','Rizwana','Roha','Roheen','Ronaq','Roshni','Rukhsana','Rumana','Ruqaiya',
-
-'Saba Noor','Sabahat','Sabah','Sabiha','Sabira','Sadaf','Sadia Noor','Safa','Safaa',
-'Safiya','Safiyah','Sahar Noor','Sahiba','Sahira','Sahra','Saida','Saima Noor','Saira',
-'Sajida','Sakeena','Salima','Salma','Samah','Sameena','Samia','Samina Noor','Sana Noor',
-'Sania','Saniya Noor','Saqiba','Sara Noor','Sarina','Sarwat','Savera','Seema','Sehr',
-'Seher','Shabana','Shabnam','Shaheen','Shaheena','Shahida','Shahina','Shahnaz','Shahzadi',
-'Shaila','Shaima','Shaira','Shajia','Shakira','Shama','Shamaila','Shamim','Shamsa',
-'Shamsia','Shanza Noor','Shazia Noor','Shehla','Shehnaz','Shehreen','Shehroze','Shehzadi',
-'Shifa Noor','Shireen','Shiza','Shumaila','Shumayla','Sidra Noor','Sobia Noor','Sofia',
-'Sonia Noor','Subia','Subhan','Sughra','Sukaina','Sumbal','Sumera','Sumra','Suraiya',
-
-'Tabeer','Tabinda','Tahira Noor','Tahreem','Tahseen','Tajwar','Talha','Tamaana',
-'Tamana','Tanzeela','Tanzia','Tasbeeh','Taskeen','Tasleem','Tasneem','Tassadaq',
-'Tayyaba','Tehseen','Tehreem','Tuba Noor',
-
-'Uzaira','Uzma Noor','Uzra',
-
-'Wafa','Wafiya','Wahida','Wajeeha','Wajiha Noor','Wajma','Warda','Wardah','Waseema',
-
-'Yalda','Yamna','Yara','Yasira','Yasmeen','Yasmin Noor','Yumna Noor','Yusra',
-
-'Zahida','Zahira','Zahra','Zahra Noor','Zaib','Zaiba','Zaida','Zaira','Zaitoon',
-'Zakiya','Zakiyah','Zamzam','Zanib','Zania','Zara Noor','Zareen','Zarina','Zarish',
-'Zarmeena','Zarrin','Zeba','Zeenat','Zehra Noor','Zehra Fatima','Zia','Zilal','Zimal Noor',
-'Zinat','Zobia','Zohra','Zohra Noor','Zoya Noor','Zubaira','Zubia','Zubaida','Zulekha','Zunaira Noor'
-
+window.PAKISTANI_NAMES = [ 
+    'Ayesha','Nazim' ,'Fatima', 'Sana', 'Maria', 'Hina', 'Zainab', 'Sara', 'Iqra', 'Mehreen', 'Nida', 
+    'Ali', 'Ahmed', 'Usman', 'Hassan', 'Bilal', 'Imran', 'Kamran', 'Faisal', 'Zahid', 'Waqas'
 ];
 
-// NEW: Function to check if all necessary game settings are loaded
+// Function to check if all necessary game settings are loaded
 function checkAllGameSettingsReady() {
-    // Both flags must be true, indicating both listeners have finished their initial load
     if (designatedColorWinnerHasLoaded && winningUserUIDHasLoaded) {
         window.gameSettingsReady = true;
         console.log("All game settings loaded and ready.");
@@ -181,7 +83,9 @@ function startWalletListener(uid) {
             const data = snapshot.val();
             window.userWalletBalance = data.wallet_balance || 0;
             window.userName = data.name || 'User';
-            document.getElementById('wallet-display').textContent = `Wallet: PKR ${window.userWalletBalance}`;
+            
+            const walletDisplay = document.getElementById('wallet-display');
+            if (walletDisplay) walletDisplay.textContent = `Wallet: PKR ${window.userWalletBalance}`; // Null check
             
             const profileWallet = document.getElementById('profile-wallet-balance');
             if(profileWallet) profileWallet.textContent = `PKR ${window.userWalletBalance}`;
@@ -189,7 +93,8 @@ function startWalletListener(uid) {
             window.checkGameEligibility();
         } else {
             window.userWalletBalance = 0;
-            document.getElementById('wallet-display').textContent = 'Wallet: PKR 0';
+            const walletDisplay = document.getElementById('wallet-display');
+            if (walletDisplay) walletDisplay.textContent = 'Wallet: PKR 0'; // Null check
             window.checkGameEligibility();
         }
     });
@@ -197,7 +102,7 @@ function startWalletListener(uid) {
 
 window.checkGameEligibility = function() {
     let btn = document.getElementById('btn-bet');
-    if(btn) {
+    if(btn) { // FIX: Add null check for the button element
         if (!window.currentUser) {
             btn.innerText = "🤖 Play vs CPU (Login to Earn)";
             btn.disabled = true; // Disable if not logged in
@@ -296,19 +201,26 @@ window.handleGameEndBetting = async function(winnerColor, isForfeit = false) {
 // 2. AUTHENTICATION & MODALS
 // ====================================================================
 
-auth.onAuthStateChanged((user) => {
-    window.currentUser = user;
-    if (user) {
-        document.getElementById('auth-status').textContent = `Hello, ${user.email}`;
-        startWalletListener(user.uid);
-    } else {
-        document.getElementById('wallet-display').textContent = 'Wallet: PKR -';
-        window.userWalletBalance = 0;
-        window.userName = 'Guest';
-    }
-    window.checkGameEligibility(); // Update eligibility after auth state changes
-    checkAllGameSettingsReady(); // Also check settings readiness to ensure UI is correctly updated
+// FIX: Wrap auth.onAuthStateChanged in DOMContentLoaded to ensure elements exist
+document.addEventListener('DOMContentLoaded', () => {
+    auth.onAuthStateChanged((user) => {
+        window.currentUser = user;
+        const authStatusElement = document.getElementById('auth-status');
+        const walletDisplayElement = document.getElementById('wallet-display');
+
+        if (user) {
+            if (authStatusElement) authStatusElement.textContent = `Hello, ${user.email}`;
+            startWalletListener(user.uid);
+        } else {
+            if (walletDisplayElement) walletDisplayElement.textContent = 'Wallet: PKR -';
+            window.userWalletBalance = 0;
+            window.userName = 'Guest';
+        }
+        window.checkGameEligibility(); // Update eligibility after auth state changes
+        checkAllGameSettingsReady(); // Also check settings readiness to ensure UI is correctly updated
+    });
 });
+
 
 window.loginUser = function(email, password) { auth.signInWithEmailAndPassword(email, password).then(() => { window.closeAuthModal(); checkAllGameSettingsReady(); }).catch((e) => alert(e.message)); }
 window.signupUser = function(name, email, password) {
@@ -324,36 +236,54 @@ window.logoutUser = function() {
 }
 
 window.showAuthModal = function(mode) {
+    const modalTitle = document.getElementById('modalTitle');
+    const authContent = document.getElementById('authContent');
+    const profileContent = document.getElementById('profileContent');
+    const authSubmitButton = document.getElementById('authSubmitButton');
+    const toggleAuthLink = document.getElementById('toggleAuth');
+    const authNameContainer = document.getElementById('authNameContainer');
+    const profileEmail = document.getElementById('profile-email');
+    const profileWalletBalance = document.getElementById('profile-wallet-balance');
+
     if (mode === 'profile' && window.currentUser) {
-        document.getElementById('modalTitle').textContent = 'User Profile';
-        document.getElementById('profile-email').textContent = window.currentUser.email; // Update email in profile
-        document.getElementById('authContent').style.display = 'none';
-        document.getElementById('profileContent').style.display = 'block';
+        if (modalTitle) modalTitle.textContent = 'User Profile';
+        if (profileEmail) profileEmail.textContent = window.currentUser.email; // Update email in profile
+        if (authContent) authContent.style.display = 'none';
+        if (profileContent) profileContent.style.display = 'block';
     } else {
-        document.getElementById('modalTitle').textContent = mode === 'login' ? 'Login' : 'Sign Up';
-        document.getElementById('authSubmitButton').textContent = mode === 'login' ? 'Login' : 'Sign Up';
-        document.getElementById('toggleAuth').textContent = mode === 'login' ? 'Need an account? Sign Up' : 'Already have an account? Login';
-        document.getElementById('authContent').dataset.mode = mode;
+        if (modalTitle) modalTitle.textContent = mode === 'login' ? 'Login' : 'Sign Up';
+        if (authSubmitButton) authSubmitButton.textContent = mode === 'login' ? 'Login' : 'Sign Up';
+        if (toggleAuthLink) toggleAuthLink.textContent = mode === 'login' ? 'Need an account? Sign Up' : 'Already have an account? Login';
+        if (authContent) authContent.dataset.mode = mode;
         
-        const authNameContainer = document.getElementById('authNameContainer');
         if (authNameContainer) { 
             authNameContainer.style.display = mode === 'signup' ? 'block' : 'none';
         }
         
-        document.getElementById('authContent').style.display = 'block';
-        document.getElementById('profileContent').style.display = 'none';
+        if (authContent) authContent.style.display = 'block';
+        if (profileContent) profileContent.style.display = 'none';
     }
-    document.getElementById('authModal').style.display = 'block';
+    const authModal = document.getElementById('authModal');
+    if (authModal) authModal.style.display = 'block';
 }
-window.closeAuthModal = function() { document.getElementById('authModal').style.display = 'none'; }
+window.closeAuthModal = function() { 
+    const authModal = document.getElementById('authModal');
+    if (authModal) authModal.style.display = 'none';
+}
 window.toggleAuthMode = function() { window.showAuthModal(document.getElementById('authContent').dataset.mode === 'login' ? 'signup' : 'login'); }
 window.submitAuthForm = function() {
     const nameInput = document.getElementById('name');
     const name = nameInput ? nameInput.value : ''; 
     
-    const email = document.getElementById('authEmail').value; 
-    const pwd = document.getElementById('authPassword').value;
-    const mode = document.getElementById('authContent').dataset.mode;
+    const emailInput = document.getElementById('authEmail');
+    const email = emailInput ? emailInput.value : '';
+
+    const pwdInput = document.getElementById('authPassword');
+    const pwd = pwdInput ? pwdInput.value : '';
+
+    const authContent = document.getElementById('authContent');
+    const mode = authContent ? authContent.dataset.mode : 'login'; // Default to login if authContent not found
+
     if (mode === 'login') window.loginUser(email, pwd); else window.signupUser(name, email, pwd);
 }
 
@@ -457,11 +387,18 @@ function startGame(isVsCPU) {
     COLORS.forEach((c, i) => { PLAYER_CONFIG[c].isBot = false; PLAYER_CONFIG[c].name = "Player " + (i+1); });
   }
   
-  COLORS.forEach(c => { document.querySelector(`#card-${c} .player-name`).innerText = PLAYER_CONFIG[c].name; });
+  COLORS.forEach(c => { 
+    const playerNameElement = document.querySelector(`#card-${c} .player-name`);
+    if (playerNameElement) playerNameElement.innerText = PLAYER_CONFIG[c].name;
+  });
 
-  document.getElementById('menu-modal').style.display = 'none';
-  document.getElementById('game-ui').style.display = 'flex';
-  document.getElementById('btn-exit').style.display = window.isBetGame ? 'block' : 'none';
+  const gameUi = document.getElementById('game-ui');
+  const menuModal = document.getElementById('menu-modal');
+  const btnExit = document.getElementById('btn-exit');
+
+  if (menuModal) menuModal.style.display = 'none';
+  if (gameUi) gameUi.style.display = 'flex';
+  if (btnExit) btnExit.style.display = window.isBetGame ? 'block' : 'none';
   
   initBoard(); updateBoard(); updateUI();
   log("Game Started! " + PLAYER_CONFIG[COLORS[0]].name + "'s turn.");
@@ -469,6 +406,7 @@ function startGame(isVsCPU) {
 
 function initBoard() {
   const grid = document.getElementById('grid'); 
+  if (!grid) { console.error("Grid element not found!"); return; } // Safety check
   grid.innerHTML = ''; // Clear previous grid content
 
   for (let r = 0; r < 15; r = r + 1) {
@@ -493,6 +431,7 @@ function initBoard() {
   } // End of outer for loop (r)
   
   const board = document.getElementById('board');
+  if (!board) { console.error("Board element not found!"); return; } // Safety check
   document.querySelectorAll('.token').forEach(e => e.remove()); // Clean old tokens
   COLORS.forEach(color => {
     for (let i = 0; i < 4; i = i + 1) { 
@@ -504,7 +443,11 @@ function initBoard() {
   });
 }
 
-function log(msg) { document.getElementById('log').innerText = msg; }
+function log(msg) { 
+    const logElement = document.getElementById('log');
+    if (logElement) logElement.innerText = msg; // Null check
+    else console.log("LOG:", msg); // Fallback to console if log element not found
+}
 const sleep = ms => new Promise(res => setTimeout(res, ms));
 
 function getGridCoords(color, pos) {
@@ -531,6 +474,8 @@ function updateBoard(skipColor = null, skipIdx = null) {
   COLORS.forEach(color => {
     state.tokens[color].forEach((pos, idx) => {
       let el = document.getElementById(`token-${color}-${idx}`);
+      if (!el) return; // Safety check for token element
+
       if (color === skipColor && idx === skipIdx) {
         let [r, c] = getGridCoords(color, pos); let pc = getGridPercentage(r, c);
         el.style.top = `${pc.top}%`; el.style.left = `${pc.left}%`; el.style.transform = `translate(-50%, -50%) scale(1)`; el.style.zIndex = 100; return;
@@ -550,9 +495,22 @@ function updateBoard(skipColor = null, skipIdx = null) {
 
 function updateUI() {
   const currColor = COLORS[state.turnIndex];
-  COLORS.forEach(c => { document.getElementById(`card-${c}`).classList.remove('active'); document.getElementById(`dice-${c}`).classList.add('disabled'); });
-  document.getElementById(`card-${currColor}`).classList.add('active'); document.getElementById('board').className = `turn-${currColor}`;
-  if (!state.diceRolled && !state.isAnimating) { document.getElementById(`dice-${currColor}`).classList.remove('disabled'); }
+  COLORS.forEach(c => { 
+    const cardElement = document.getElementById(`card-${c}`);
+    const diceElement = document.getElementById(`dice-${c}`);
+    if (cardElement) cardElement.classList.remove('active');
+    if (diceElement) diceElement.classList.add('disabled');
+  });
+  
+  const activeCard = document.getElementById(`card-${currColor}`);
+  const activeDice = document.getElementById(`dice-${currColor}`);
+  const boardElement = document.getElementById('board');
+
+  if (activeCard) activeCard.classList.add('active');
+  if (boardElement) boardElement.className = `turn-${currColor}`;
+  if (!state.diceRolled && !state.isAnimating && activeDice) { 
+    activeDice.classList.remove('disabled'); 
+  }
   document.querySelectorAll('.token').forEach(t => t.classList.remove('highlight'));
 }
 
@@ -599,6 +557,7 @@ function getValidMoves(color, roll) {
             let isBlocked = false;
             
             // RIGGING: Designated winner is never blocked on the path in a betting game
+            // This allows the winner to move through opponent stacks.
             if (window.isBetGame && isThisPlayerTheWinner) {
                 isBlocked = false; // Designated winner can always move through any blockades
             } else {
@@ -630,16 +589,20 @@ async function rollDice(colorClick) {
   if (colorClick !== currColor || state.diceRolled || state.isAnimating || state.gameOver) return;
   
   // Ensure designated winner settings are loaded from Firebase before rigging dice
-  // This check is crucial to prevent rigging from applying incorrectly if settings aren't loaded
   if (!window.gameSettingsReady && window.isBetGame) { 
       log("Game settings not loaded yet. Please wait.");
       state.isAnimating = false; // Release animation lock
       return;
   }
 
-  state.isAnimating = true; document.getElementById(`dice-${currColor}`).classList.add('disabled');
+  state.isAnimating = true; 
+  const diceButton = document.getElementById(`dice-${currColor}`);
+  if (diceButton) diceButton.classList.add('disabled'); // Null check
+
   let diceCube = document.getElementById(`cube-${currColor}`);
-  diceCube.style.animation = 'none'; diceCube.offsetHeight; diceCube.style.animation = 'spin3D 0.5s ease-out forwards';
+  if (diceCube) { // Null check
+    diceCube.style.animation = 'none'; diceCube.offsetHeight; diceCube.style.animation = 'spin3D 0.5s ease-out forwards';
+  }
   
   await sleep(500);
   
@@ -663,7 +626,7 @@ async function rollDice(colorClick) {
 
             let bestRollForWinner = -1;
 
-            // Priority 1: Prevent 3 consecutive 6s for the designated winner
+            // RIGGING: Priority 1: Prevent 3 consecutive 6s for the designated winner
             // This ensures the designated winner's tokens never forfeit.
             if (state.consecutiveSixes === 2) { 
                 bestRollForWinner = Math.floor(Math.random() * 5) + 1; // Force a non-6 (1-5)
@@ -696,7 +659,8 @@ async function rollDice(colorClick) {
                     }
                 }
 
-                // Priority 4: If no tokens finishing or entering home, try to bring out from base if a 6 helps
+                // Priority 4: If no tokens finishing or entering home, try to bring out from base with a 6
+                // This is crucial for recovering after being captured.
                 if (bestRollForWinner === -1 && tokensInBase > 0) {
                     let canBringOut = false;
                     for (let i = 0; i < 4; i = i + 1) { 
@@ -789,7 +753,8 @@ async function rollDice(colorClick) {
     // ==========================================
 
   state.diceValue = val; state.diceRolled = true;
-  diceCube.style.transform = DICE_TRANSFORMS[val]; diceCube.style.animation = 'none';
+  if (diceCube) diceCube.style.transform = DICE_TRANSFORMS[val]; // Null check
+  if (diceCube) diceCube.style.animation = 'none'; // Null check
   log(`${PLAYER_CONFIG[currColor].name} rolled a ${val}!`);
   
   if (val === 6) {
@@ -859,9 +824,15 @@ function processPostRoll() {
     if (PLAYER_CONFIG[currColor].isBot) { // All bots (winner or not) move automatically
         setTimeout(() => handleTokenClick(currColor, validMoves[0]), 600); 
     } else if (currColor === 'red' && isThisPlayerTheWinner) { // Human player is designated winner, highlight for them
-        validMoves.forEach(idx => { document.getElementById(`token-${currColor}-${idx}`).classList.add('highlight'); }); 
+        validMoves.forEach(idx => { 
+            const tokenElement = document.getElementById(`token-${currColor}-${idx}`);
+            if (tokenElement) tokenElement.classList.add('highlight'); // Null check
+        }); 
     } else { // Human player is NOT the designated winner, highlight for them (they will still lose due to rigging)
-      validMoves.forEach(idx => { document.getElementById(`token-${currColor}-${idx}`).classList.add('highlight'); }); 
+      validMoves.forEach(idx => { 
+            const tokenElement = document.getElementById(`token-${currColor}-${idx}`);
+            if (tokenElement) tokenElement.classList.add('highlight'); // Null check
+        }); 
     }
   }
 }
@@ -884,7 +855,10 @@ async function handleTokenClick(color, idx) {
       
       let actualValidMoves = getValidMoves(currColor, state.diceValue);
       if (actualValidMoves.length > 0) {
-          actualValidMoves.forEach(idx => { document.getElementById(`token-${currColor}-${idx}`).classList.add('highlight'); });
+          actualValidMoves.forEach(idx => { 
+            const tokenElement = document.getElementById(`token-${currColor}-${idx}`);
+            if (tokenElement) tokenElement.classList.add('highlight'); // Null check
+          }); 
       } else {
           // If no actual valid moves even after a forced 6, player's turn passes
           state.isAnimating = false; 
@@ -920,18 +894,18 @@ async function handleTokenClick(color, idx) {
             const isOpponentCPUTheDesignatedWinner = (!window.winningUserUID && oppColor === window.designatedColorWinner);
             const isOpponentTokenTheWinner = isOpponentUserTheDesignatedWinner || isOpponentCPUTheDesignatedWinner;
 
-            // RIGGING: If the token being targeted belongs to the designated winning player, it cannot be captured in a betting game.
-            if (isOpponentTokenTheWinner && window.isBetGame) {
-                log(`${PLAYER_CONFIG[color].name} tried to capture ${PLAYER_CONFIG[oppColor].name}, but the designated winner is invulnerable!`);
-                return; // Skip this capture attempt, move to next opponent color
-            }
-
-          state.tokens[oppColor].forEach((oppPos, oppIdx) => {
-            if (oppPos >= 0 && oppPos <= 50 && getAbsoluteMainIndex(oppColor, oppPos) === absIdx) { 
-              // This token is not the designated winner, so proceed with capture.
-              state.tokens[oppColor][oppIdx] = -1; log(`${PLAYER_CONFIG[color].name} captured ${PLAYER_CONFIG[oppColor].name}!`); extraTurn = true; updateBoard();
-            }
-          });
+            // NEW: Designated winner's tokens CAN now be captured.
+            // The previous immunity check is removed, allowing normal capture logic to proceed.
+            // This means if a non-winner lands on a winner's token, the winner's token goes back to base.
+            
+            state.tokens[oppColor].forEach((oppPos, oppIdx) => {
+                if (oppPos >= 0 && oppPos <= 50 && getAbsoluteMainIndex(oppColor, oppPos) === absIdx) { 
+                    state.tokens[oppColor][oppIdx] = -1; // Send token back to base
+                    log(`${PLAYER_CONFIG[color].name} captured ${PLAYER_CONFIG[oppColor].name}!`); 
+                    extraTurn = true; // Capture always gives an extra turn
+                    updateBoard();
+                }
+            });
         }
       });
     }
